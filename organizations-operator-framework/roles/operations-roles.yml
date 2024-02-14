@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Cross account lambda roles for operations
+  
+Resources:
+
+  OperationAdminLambda:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: operation-admin-lambda
+      Path: "/"
+      Description: "Allows lambda to assume role operation-admin in target accounts"
+      AssumeRolePolicyDocument: 
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+      Policies:
+        - PolicyName: "assume-role"
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - sts:AssumeRole
+                Effect: Allow
+                Resource:
+                  - arn:aws:iam::*:role/operation-admin
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  OperationReadonlyLambda:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: operation-readonly-lambda
+      Path: "/"
+      Description: "Allows lambda to assume role operation-readonly in target accounts"
+      AssumeRolePolicyDocument: 
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+      Policies:
+        - PolicyName: "assume-role"
+          PolicyDocument:
+            Statement:
+              - Action:
+                  - sts:AssumeRole
+                Effect: Allow
+                Resource:
+                  - arn:aws:iam::*:role/operation-readonly
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole

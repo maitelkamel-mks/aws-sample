@@ -1,0 +1,40 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Cross account roles for operations
+
+Parameters:
+
+  OperationAccountId:
+    Type: String
+    Description: Account ID of the account where the role will be created
+
+Resources:
+  
+  OperationAdmin:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: operation-admin
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${OperationAccountId}:role/operation-admin-lambda'
+        Version: 2012-10-17
+      Description: Ops admin role assumed by Lambda functions from Operations Accounts
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AdministratorAccess'
+
+  OperationReadonly:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: operation-readonly
+      Path: '/'
+      Description: Ops readonly role assumed by Lambda functions from Operations Accounts
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${OperationAccountId}:role/operation-readonly-lambda'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/ReadOnlyAccess'

@@ -1,0 +1,17 @@
+version = 0.1
+[default.build.parameters]
+use_container = true
+cached = true
+parallel = true
+
+[default.deploy.parameters]
+stack_name = "securityhub-inventory"
+s3_bucket = "[ARTIFACT_BUCKET_NAME]"
+s3_prefix = "sam/securityhubinventory"
+region = "[AWS_REGION]"
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = """\
+    \"organizationAccountId\"=\"[ORGANIZATION_ACCOUNT_ID]\" \
+    \"reportBucketName\"=\"[REPORT_BUCKET_NAMLE]" \
+    \"createReportBucket\"=\"[true|false]\" \
+"""

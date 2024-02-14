@@ -1,0 +1,160 @@
+---
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+
+  reportBucketName:
+    Type: String
+
+  organizationAccountId:
+    Type: String
+
+  createReportBucket:
+    Type: String
+    AllowedValues:
+      - true
+      - false
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Handler: lambda_function.lambda_handler
+    Timeout: 300
+
+Conditions:
+  CreateReportBucket:
+    Fn::Equals: [ !Ref createReportBucket, "true" ]
+
+Resources:
+
+  reportBucket:
+    Type: AWS::S3::Bucket
+    Condition: CreateReportBucket
+    Properties:
+      BucketName: !Ref reportBucketName
+
+  organizationFanoutFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/organization-fanout/
+      Description: Build fanout list from organization accounts and operated regions
+      Timeout: 30
+      Environment:
+        Variables:
+          ORGANIZATION_ACCOUNT_ID: !Ref organizationAccountId
+          OPERATED_REGIONS: "eu-west-1,us-east-1"
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/operation-readonly-lambda'
+
+  securityhubInventoryCrawlerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri : src/securityhub-crawler
+      Description : Crawl security hub configuration
+      Timeout: 300
+      Role: !Sub 'arn:aws:iam::${AWS::AccountId}:role/operation-readonly-lambda'
+
+  securityHubConfigurationInventoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "SecurityHubConfigurationInventory"
+      AttributeDefinitions:
+        - AttributeName: accountId
+          AttributeType: S
+        - AttributeName: region
+          AttributeType: S
+      KeySchema:
+        - AttributeName: accountId
+          KeyType: HASH
+        - AttributeName: region
+          KeyType: RANGE
+      BillingMode: PAY_PER_REQUEST
+
+  securityhubInventoryExportFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/securityhub-export
+      Description: Export security hub configuration
+      Timeout: 300
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref reportBucketName
+          TABLE_NAME: !Ref securityHubConfigurationInventoryTable
+      Policies:
+        -
+          Version: 2012-10-17
+          Statement:
+            -
+              Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+              Resource:
+                - !Sub 'arn:aws:s3:::${reportBucketName}/*'
+            - 
+              Effect: Allow
+              Action:
+                - dynamodb:Scan
+              Resource:
+                - !GetAtt securityHubConfigurationInventoryTable.Arn
+
+
+  SecurityHubConfigurationInventoryStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Name: SecurityHubConfigurationInventory
+      Policies:
+        -
+          LambdaInvokePolicy:
+            FunctionName: !Ref organizationFanoutFunction
+        -
+          LambdaInvokePolicy:
+            FunctionName: !Ref securityhubInventoryCrawlerFunction
+        -
+          LambdaInvokePolicy:
+            FunctionName: !Ref securityhubInventoryExportFunction
+        - 
+          DynamoDBCrudPolicy:
+            TableName: !Ref securityHubConfigurationInventoryTable
+      Definition:
+        StartAt: organizationFanout
+        States:
+          organizationFanout:
+            Type: Task
+            Resource: !GetAtt organizationFanoutFunction.Arn
+            Next: parallel-workers
+          parallel-workers:
+            Type: Map
+            ItemsPath: $.AccountRegions
+            MaxConcurrency: 10
+            Next: export
+            Iterator:
+              StartAt: inventory
+              States:
+                inventory:
+                  Type: Task
+                  Resource: !GetAtt securityhubInventoryCrawlerFunction.Arn
+                  Next: pushToDynamodb
+                pushToDynamodb:
+                  Type: Task 
+                  Resource: arn:aws:states:::dynamodb:putItem
+                  Parameters:
+                    TableName: !Ref securityHubConfigurationInventoryTable
+                    Item:
+                      accountId:
+                        S.$: $.accountId
+                      region:
+                        S.$: $.region
+                      accountStatus:
+                        S.$: $.accountStatus
+                      status:
+                        S.$: $.status
+                      masterAccountId:
+                        S.$: $.masterAccountId
+                      standards:
+                        S.$: $.standards
+                  OutputPath: $.SdkHttpMetadata.HttpStatusCode
+                  End: true
+          export:
+            Type: Task
+            Resource: !GetAtt securityhubInventoryExportFunction.Arn
+            End: true
