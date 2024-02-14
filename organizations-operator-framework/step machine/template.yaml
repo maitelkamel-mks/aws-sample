@@ -125,7 +125,7 @@ Resources:
           parallel-workers:
             Type: Map
             ItemsPath: $.AccountRegions
-            MaxConcurrency: 10
+            MaxConcurrency: 0
             Next: export
             Iterator:
               StartAt: inventory
