@@ -22,10 +22,11 @@ def get_regions():
 
     regions = []
 
-    response = account_client.list_regions()
+    paginator = account_client.get_paginator('list_regions')
 
-    for region in response['Regions']:
-        regions.append(region['RegionName'])
+    for page in paginator.paginate():
+        for region in page['Regions']:
+            regions.append(region['RegionName'])
 
     return regions
 
