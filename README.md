@@ -8,3 +8,6 @@ Welcome to this repository where I shared solutions for your AWS journey.
 
 ## Organization Operator Framework
 [readme.md](/organizations-operator-framework/readme.md)
+
+## AWS Cost Report Generator
+[readme.md](/finops-cost-report/readme.md)

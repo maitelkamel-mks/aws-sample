@@ -1,0 +1,33 @@
+# AWS Cost Report Configuration
+# Example configuration file for the AWS cost report generator
+
+report_name: "aws-cost-analysis"
+report_format: "both" # Options: "markdown", "html", "both"
+sort_by: "name" # Options: "name", "total_cost"
+
+profiles:
+  - dev
+  - staging
+  - production
+
+services:
+  - Amazon Virtual Private Cloud
+  - Amazon OpenSearch Service
+  - Amazon DynamoDB
+  - Amazon Relational Database Service
+  - Amazon Simple Storage Service
+  - AWS Lambda
+  - Amazon CloudFront
+  - AWS Key Management Service
+  - AmazonCloudWatch
+  - AWS Transfer Family
+  - AWS Support (Developer)
+
+start_date: "2025-01-01"
+end_date: "2025-06-01" # end date is exclusive, so costs for this date will not be included
+
+period: "monthly" # Options: "daily", "monthly", "yearly"
+
+exclude_taxes: false # Exclude taxes from the report
+exclude_support: false # Exclude support costs from the report
+
