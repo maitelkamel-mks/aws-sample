@@ -119,7 +119,16 @@ class SecurityHubDashboard:
 
             # Store detailed finding for the detailed table
             self.detailed_findings.append(
-                {"account": profile, "region": region, "title": title, "severity": severity, "workflow_state": workflow_state, "product_name": product_name, "compliance_status": compliance_status, "id": id}
+                {
+                    "account": profile,
+                    "region": region,
+                    "title": title,
+                    "severity": severity,
+                    "workflow_state": workflow_state,
+                    "product_name": product_name,
+                    "compliance_status": compliance_status,
+                    "id": id,
+                }
             )
 
             self.findings_data[profile][region][severity]["count"] += 1
@@ -591,11 +600,11 @@ class SecurityHubDashboard:
                 const workflow = row.cells[4].textContent.toLowerCase();
                 const compliance = row.cells[5].textContent.toLowerCase();
                 
-                const showRow = (accountFilter === '' || account.includes(accountFilter)) &&
-                              (regionFilter === '' || region.includes(regionFilter)) &&
-                              (severityFilter === '' || severity.includes(severityFilter)) &&
-                              (workflowFilter === '' || workflow.includes(workflowFilter)) &&
-                              (complianceFilter === '' || compliance.includes(complianceFilter)) &&
+                const showRow = (accountFilter === '' || account === accountFilter) &&
+                              (regionFilter === '' || region === regionFilter) &&
+                              (severityFilter === '' || severity === severityFilter) &&
+                              (workflowFilter === '' || workflow === workflowFilter) &&
+                              (complianceFilter === '' || compliance === complianceFilter) &&
                               (titleSearch === '' || title.includes(titleSearch));
                 
                 row.style.display = showRow ? '' : 'none';
@@ -660,15 +669,10 @@ class SecurityHubDashboard:
         """Get Bootstrap badge color for severity."""
         colors = {"CRITICAL": "danger", "HIGH": "warning", "MEDIUM": "info", "LOW": "success"}
         return colors.get(severity, "secondary")
-    
+
     def _get_compliance_badge_color(self, compliance: str) -> str:
         """Get Bootstrap badge color for compliance status."""
-        colors = {
-            "PASSED": "success",
-            "WARNING": "warning", 
-            "FAILED": "danger",
-            "NOT_AVAILABLE": "secondary"
-        }
+        colors = {"PASSED": "success", "WARNING": "warning", "FAILED": "danger", "NOT_AVAILABLE": "secondary"}
         return colors.get(compliance, "secondary")
 
     def _get_html_header(self) -> str:
