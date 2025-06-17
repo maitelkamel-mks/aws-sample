@@ -69,9 +69,7 @@ class SecurityHubCleaner:
 
     def _build_filters(self, search_params: Dict[str, Any]) -> Dict[str, List[Dict[str, str]]]:
         """Build filters for Security Hub get_findings API based on search parameters."""
-        filters = {
-            "RecordState": [{"Value": "ACTIVE", "Comparison": "EQUALS"}]
-        }
+        filters = {"RecordState": [{"Value": "ACTIVE", "Comparison": "EQUALS"}]}
 
         # Add workflow status filter
         if "workflow_status" in search_params:
@@ -107,11 +105,11 @@ class SecurityHubCleaner:
         """Get findings from Security Hub based on filters."""
         findings = []
         try:
-            paginator = client.get_paginator('get_findings')
+            paginator = client.get_paginator("get_findings")
             page_iterator = paginator.paginate(Filters=filters)
 
             for page in page_iterator:
-                findings.extend(page.get('Findings', []))
+                findings.extend(page.get("Findings", []))
 
         except ClientError as e:
             print(f"Error fetching findings: {e}")
@@ -128,7 +126,7 @@ class SecurityHubCleaner:
         batch_size = 100
         total_success = 0
         total_failed = 0
-        
+
         try:
             if self.dry_run:
                 print(f"  [DRY RUN] Would update {len(finding_identifiers)} findings to status: {new_status}")
@@ -138,29 +136,26 @@ class SecurityHubCleaner:
 
             # Process findings in batches
             for i in range(0, len(finding_identifiers), batch_size):
-                batch = finding_identifiers[i:i + batch_size]
+                batch = finding_identifiers[i : i + batch_size]
                 batch_num = (i // batch_size) + 1
                 total_batches = (len(finding_identifiers) + batch_size - 1) // batch_size
-                
+
                 if total_batches > 1:
                     print(f"    Processing batch {batch_num}/{total_batches} ({len(batch)} findings)")
-                
-                response = client.batch_update_findings(
-                    FindingIdentifiers=batch,
-                    Workflow={"Status": new_status}
-                )
-                
-                failed_count = len(response.get('UnprocessedFindings', []))
+
+                response = client.batch_update_findings(FindingIdentifiers=batch, Workflow={"Status": new_status})
+
+                failed_count = len(response.get("UnprocessedFindings", []))
                 success_count = len(batch) - failed_count
-                
+
                 total_success += success_count
                 total_failed += failed_count
-                
+
                 if failed_count > 0:
                     print(f"    Batch {batch_num}: {failed_count} findings failed to update")
-                    for failed in response.get('UnprocessedFindings', []):
+                    for failed in response.get("UnprocessedFindings", []):
                         print(f"      Failed: {failed.get('Id', 'Unknown')}")
-                
+
                 if total_batches > 1:
                     print(f"    Batch {batch_num}: {success_count} findings updated successfully")
 
@@ -178,11 +173,10 @@ class SecurityHubCleaner:
             return
 
         description = search_params.get("description", "Unnamed search")
-        print(f"\n  Processing: {description}")
+        print(f"  Processing: {description}")
 
         # Build filters
         filters = self._build_filters(search_params)
-        print(f"    Filters: {filters}")
 
         # Get findings
         findings = self._get_findings(client, filters)
@@ -201,10 +195,7 @@ class SecurityHubCleaner:
             finding_id = finding.get("Id")
             product_arn = finding.get("ProductArn")
             if finding_id and product_arn:
-                finding_identifiers.append({
-                    "Id": finding_id,
-                    "ProductArn": product_arn
-                })
+                finding_identifiers.append({"Id": finding_id, "ProductArn": product_arn})
 
         if not finding_identifiers:
             print(f"    No valid finding identifiers found")
@@ -222,21 +213,25 @@ class SecurityHubCleaner:
         else:
             print("⚠️  Running in LIVE mode - findings will be updated\n")
 
-        for profile in self.config["profiles"]:
-            print(f"📋 Processing profile: {profile}")
+        for i, profile in enumerate(self.config["profiles"]):
+            if i > 0:
+                print(f"\n{'-' * 60}")
             
+            print(f"📋 Processing profile: {profile}")
+
             try:
                 for search_params in self.config["findings_search_parameters"]:
                     self._process_search_params(profile, search_params)
-                    
+
             except Exception as e:
                 print(f"Error processing profile '{profile}': {e}")
                 continue
 
-        print(f"\n📊 Summary:")
+        print(f"\n{'=' * 60}")
+        print(f"📊 Summary:")
         print(f"   Total findings processed: {self.total_processed}")
         print(f"   Total findings updated: {self.total_updated}")
-        
+
         if self.dry_run:
             print(f"   (Dry run - no actual changes made)")
 
@@ -244,7 +239,7 @@ class SecurityHubCleaner:
 def main():
     """Main function to run the Security Hub cleaner."""
     parser = argparse.ArgumentParser(description="Update Security Hub finding workflow status based on search criteria")
-    parser.add_argument("config_file", nargs='?', default="config.yaml", help="Path to YAML configuration file (default: config.yaml)")
+    parser.add_argument("config_file", nargs="?", default="config.yaml", help="Path to YAML configuration file (default: config.yaml)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be updated without making changes")
 
     args = parser.parse_args()
