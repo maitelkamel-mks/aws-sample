@@ -120,29 +120,52 @@ class SecurityHubCleaner:
         return findings
 
     def _update_findings_workflow(self, client: boto3.client, finding_identifiers: List[Dict[str, str]], new_status: str) -> bool:
-        """Update workflow status for a list of findings."""
+        """Update workflow status for a list of findings in batches of 100."""
         if not finding_identifiers:
             return True
 
+        # AWS API limit is 100 FindingIdentifiers per call
+        batch_size = 100
+        total_success = 0
+        total_failed = 0
+        
         try:
             if self.dry_run:
                 print(f"  [DRY RUN] Would update {len(finding_identifiers)} findings to status: {new_status}")
+                if len(finding_identifiers) > batch_size:
+                    print(f"    Would process in {(len(finding_identifiers) + batch_size - 1) // batch_size} batches of {batch_size}")
                 return True
-            else:
+
+            # Process findings in batches
+            for i in range(0, len(finding_identifiers), batch_size):
+                batch = finding_identifiers[i:i + batch_size]
+                batch_num = (i // batch_size) + 1
+                total_batches = (len(finding_identifiers) + batch_size - 1) // batch_size
+                
+                if total_batches > 1:
+                    print(f"    Processing batch {batch_num}/{total_batches} ({len(batch)} findings)")
+                
                 response = client.batch_update_findings(
-                    FindingIdentifiers=finding_identifiers,
+                    FindingIdentifiers=batch,
                     Workflow={"Status": new_status}
                 )
                 
                 failed_count = len(response.get('UnprocessedFindings', []))
-                if failed_count > 0:
-                    print(f"  Warning: {failed_count} findings failed to update")
-                    for failed in response.get('UnprocessedFindings', []):
-                        print(f"    Failed: {failed.get('Id', 'Unknown')}")
+                success_count = len(batch) - failed_count
                 
-                success_count = len(finding_identifiers) - failed_count
-                print(f"  Successfully updated {success_count} findings to status: {new_status}")
-                return failed_count == 0
+                total_success += success_count
+                total_failed += failed_count
+                
+                if failed_count > 0:
+                    print(f"    Batch {batch_num}: {failed_count} findings failed to update")
+                    for failed in response.get('UnprocessedFindings', []):
+                        print(f"      Failed: {failed.get('Id', 'Unknown')}")
+                
+                if total_batches > 1:
+                    print(f"    Batch {batch_num}: {success_count} findings updated successfully")
+
+            print(f"  Total: {total_success} findings updated successfully, {total_failed} failed")
+            return total_failed == 0
 
         except ClientError as e:
             print(f"  Error updating findings: {e}")
