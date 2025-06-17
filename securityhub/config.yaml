@@ -1,0 +1,13 @@
+# AWS Security Hub Dashboard Configuration
+# Configuration file for the Security Hub dashboard generator
+
+report_name: "securityhub-dashboard"
+
+# Security Hub home region (where findings are aggregated)
+home_region: "eu-west-1"
+
+# AWS profiles to analyze
+profiles:
+  - prod
+  - staging
+  - dev
