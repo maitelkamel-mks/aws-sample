@@ -113,12 +113,13 @@ class SecurityHubDashboard:
             workflow_state = finding.get("WorkflowState")
             title = finding.get("Title", "N/A")
             product_name = finding.get("ProductName", "N/A")
+            compliance_status = finding.get("Compliance", {}).get("Status", "N/A")
 
             # print(f"{profile} - {region} ) Finding {id} - {severity} - {workflow_state}")
 
             # Store detailed finding for the detailed table
             self.detailed_findings.append(
-                {"account": profile, "region": region, "title": title, "severity": severity, "workflow_state": workflow_state, "product_name": product_name, "id": id}
+                {"account": profile, "region": region, "title": title, "severity": severity, "workflow_state": workflow_state, "product_name": product_name, "compliance_status": compliance_status, "id": id}
             )
 
             self.findings_data[profile][region][severity]["count"] += 1
@@ -485,7 +486,17 @@ class SecurityHubDashboard:
                             <option value="NOTIFIED">NOTIFIED</option>
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-2">
+                        <label for="complianceFilter" class="form-label">Compliance:</label>
+                        <select id="complianceFilter" class="form-select form-select-sm">
+                            <option value="">All Compliance</option>
+                            <option value="PASSED">PASSED</option>
+                            <option value="WARNING">WARNING</option>
+                            <option value="FAILED">FAILED</option>
+                            <option value="NOT_AVAILABLE">NOT_AVAILABLE</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
                         <label for="titleSearch" class="form-label">Search Title:</label>
                         <input type="text" id="titleSearch" class="form-control form-control-sm" placeholder="Search in title...">
                     </div>
@@ -499,7 +510,8 @@ class SecurityHubDashboard:
                         <th class="sortable" onclick="sortDetailedTable(2, false)">Title <span class="sort-icon">↕️</span></th>
                         <th class="sortable" onclick="sortDetailedTable(3, false)">Severity <span class="sort-icon">↕️</span></th>
                         <th class="sortable" onclick="sortDetailedTable(4, false)">Workflow <span class="sort-icon">↕️</span></th>
-                        <th class="sortable" onclick="sortDetailedTable(5, false)">Product <span class="sort-icon">↕️</span></th>
+                        <th class="sortable" onclick="sortDetailedTable(5, false)">Compliance <span class="sort-icon">↕️</span></th>
+                        <th class="sortable" onclick="sortDetailedTable(6, false)">Product <span class="sort-icon">↕️</span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -514,6 +526,7 @@ class SecurityHubDashboard:
                         <td class="text-start" title="{finding['title']}">{finding['title'][:80]}{'...' if len(finding['title']) > 80 else ''}</td>
                         <td class="text-center"><span class="badge bg-{self._get_severity_badge_color(finding['severity'])}">{finding['severity']}</span></td>
                         <td class="text-center">{finding['workflow_state']}</td>
+                        <td class="text-center"><span class="badge bg-{self._get_compliance_badge_color(finding['compliance_status'])}">{finding['compliance_status']}</span></td>
                         <td class="text-center">{finding['product_name']}</td>
                     </tr>
 """
@@ -555,6 +568,7 @@ class SecurityHubDashboard:
             document.getElementById('regionFilter').addEventListener('change', filterTable);
             document.getElementById('severityFilter').addEventListener('change', filterTable);
             document.getElementById('workflowFilter').addEventListener('change', filterTable);
+            document.getElementById('complianceFilter').addEventListener('change', filterTable);
             document.getElementById('titleSearch').addEventListener('input', filterTable);
         });
         
@@ -566,6 +580,7 @@ class SecurityHubDashboard:
             const regionFilter = document.getElementById('regionFilter').value.toLowerCase();
             const severityFilter = document.getElementById('severityFilter').value.toLowerCase();
             const workflowFilter = document.getElementById('workflowFilter').value.toLowerCase();
+            const complianceFilter = document.getElementById('complianceFilter').value.toLowerCase();
             const titleSearch = document.getElementById('titleSearch').value.toLowerCase();
             
             rows.forEach(row => {
@@ -574,11 +589,13 @@ class SecurityHubDashboard:
                 const title = row.cells[2].textContent.toLowerCase();
                 const severity = row.cells[3].textContent.toLowerCase();
                 const workflow = row.cells[4].textContent.toLowerCase();
+                const compliance = row.cells[5].textContent.toLowerCase();
                 
                 const showRow = (accountFilter === '' || account.includes(accountFilter)) &&
                               (regionFilter === '' || region.includes(regionFilter)) &&
                               (severityFilter === '' || severity.includes(severityFilter)) &&
                               (workflowFilter === '' || workflow.includes(workflowFilter)) &&
+                              (complianceFilter === '' || compliance.includes(complianceFilter)) &&
                               (titleSearch === '' || title.includes(titleSearch));
                 
                 row.style.display = showRow ? '' : 'none';
@@ -643,6 +660,16 @@ class SecurityHubDashboard:
         """Get Bootstrap badge color for severity."""
         colors = {"CRITICAL": "danger", "HIGH": "warning", "MEDIUM": "info", "LOW": "success"}
         return colors.get(severity, "secondary")
+    
+    def _get_compliance_badge_color(self, compliance: str) -> str:
+        """Get Bootstrap badge color for compliance status."""
+        colors = {
+            "PASSED": "success",
+            "WARNING": "warning", 
+            "FAILED": "danger",
+            "NOT_AVAILABLE": "secondary"
+        }
+        return colors.get(compliance, "secondary")
 
     def _get_html_header(self) -> str:
         """Generate HTML header with Bootstrap and Chart.js."""
