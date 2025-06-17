@@ -24,7 +24,7 @@ class SecurityHubDashboard:
         self.findings_data = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(int))))
         self.detailed_findings = []  # Store detailed findings for the table
         self.table_counter = 0
-        self.severity_order = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFORMATIONAL"]
+        self.severity_order = ["CRITICAL", "HIGH", "MEDIUM", "LOW"]
         self.regions = set()
 
     def _load_config(self, config_file: str) -> Dict[str, Any]:
@@ -101,8 +101,8 @@ class SecurityHubDashboard:
             severity = finding.get("Severity", {}).get("Label")
 
             # skip findings with severity INFORMATIONAL
-            # if severity == "INFORMATIONAL":
-            #     continue
+            if severity == "INFORMATIONAL":
+                continue
 
             # Extract region from the finding's Region field
             region = finding["Region"]
@@ -114,7 +114,7 @@ class SecurityHubDashboard:
             title = finding.get("Title", "N/A")
             product_name = finding.get("ProductName", "N/A")
 
-            print(f"{profile} - {region} ) Finding {id} - {severity} - {workflow_state}")
+            # print(f"{profile} - {region} ) Finding {id} - {severity} - {workflow_state}")
 
             # Store detailed finding for the detailed table
             self.detailed_findings.append(

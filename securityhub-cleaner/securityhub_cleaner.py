@@ -8,11 +8,10 @@ configurable search parameters. It supports dry-run mode for safe testing.
 
 import argparse
 import sys
-import os
 from typing import Dict, List, Any
 import yaml
 import boto3
-from botocore.exceptions import ClientError, NoCredentialsError
+from botocore.exceptions import ClientError
 
 
 class SecurityHubCleaner:
@@ -120,18 +119,18 @@ class SecurityHubCleaner:
 
         return findings
 
-    def _update_findings_workflow(self, client: boto3.client, finding_ids: List[str], new_status: str) -> bool:
+    def _update_findings_workflow(self, client: boto3.client, finding_identifiers: List[Dict[str, str]], new_status: str) -> bool:
         """Update workflow status for a list of findings."""
-        if not finding_ids:
+        if not finding_identifiers:
             return True
 
         try:
             if self.dry_run:
-                print(f"  [DRY RUN] Would update {len(finding_ids)} findings to status: {new_status}")
+                print(f"  [DRY RUN] Would update {len(finding_identifiers)} findings to status: {new_status}")
                 return True
             else:
                 response = client.batch_update_findings(
-                    FindingIdentifiers=[{"Id": finding_id} for finding_id in finding_ids],
+                    FindingIdentifiers=finding_identifiers,
                     Workflow={"Status": new_status}
                 )
                 
@@ -141,7 +140,7 @@ class SecurityHubCleaner:
                     for failed in response.get('UnprocessedFindings', []):
                         print(f"    Failed: {failed.get('Id', 'Unknown')}")
                 
-                success_count = len(finding_ids) - failed_count
+                success_count = len(finding_identifiers) - failed_count
                 print(f"  Successfully updated {success_count} findings to status: {new_status}")
                 return failed_count == 0
 
@@ -173,17 +172,25 @@ class SecurityHubCleaner:
 
         print(f"    Found {finding_count} findings matching criteria")
 
-        # Extract finding IDs
-        finding_ids = [finding.get("Id") for finding in findings if finding.get("Id")]
+        # Extract finding identifiers (ID and ProductArn)
+        finding_identifiers = []
+        for finding in findings:
+            finding_id = finding.get("Id")
+            product_arn = finding.get("ProductArn")
+            if finding_id and product_arn:
+                finding_identifiers.append({
+                    "Id": finding_id,
+                    "ProductArn": product_arn
+                })
 
-        if not finding_ids:
-            print(f"    No valid finding IDs found")
+        if not finding_identifiers:
+            print(f"    No valid finding identifiers found")
             return
 
         # Update workflow status
-        success = self._update_findings_workflow(client, finding_ids, self.config["new_workflow_status"])
+        success = self._update_findings_workflow(client, finding_identifiers, self.config["new_workflow_status"])
         if success:
-            self.total_updated += len(finding_ids)
+            self.total_updated += len(finding_identifiers)
 
     def run_cleanup(self) -> None:
         """Run the cleanup process for all profiles and search parameters."""
