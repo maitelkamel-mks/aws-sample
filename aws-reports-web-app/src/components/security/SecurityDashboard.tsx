@@ -294,6 +294,13 @@ export default function SecurityDashboard() {
       ellipsis: true,
     },
     {
+      title: 'Profile',
+      dataIndex: 'profile_name',
+      key: 'profile_name',
+      width: 120,
+      ellipsis: true,
+    },
+    {
       title: 'Resource',
       dataIndex: 'resource_name',
       key: 'resource_name',
@@ -741,27 +748,19 @@ export default function SecurityDashboard() {
 
       {securityData && (() => {
         // Process data to match Python script structure
-        // Get actual accounts from findings data (these are account IDs)
-        const accounts = [...new Set(filteredFindings.map(f => f.account))].sort();
+        // Get unique profiles and regions from findings data
+        const profiles = [...new Set(filteredFindings.map(f => f.profile_name).filter((p): p is string => Boolean(p)))].sort();
         const regions = [...new Set(filteredFindings.map(f => f.region))].sort();
         const severities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
         
-        // Create a mapping from account ID to profile name for display
-        const accountToProfile: Record<string, string> = {};
-        selectedProfiles.forEach((profile, index) => {
-          if (accounts[index]) {
-            accountToProfile[accounts[index]] = profile;
-          }
-        });
-        
-        // Create account summary data (like Python script's account tables)
-        const accountSummaryData: Record<string, SecurityTableRow[]> = {};
-        accounts.forEach(account => {
-          const accountFindings = filteredFindings.filter(f => f.account === account);
+        // Create profile summary data (like Python script's account tables)
+        const profileSummaryData: Record<string, SecurityTableRow[]> = {};
+        profiles.forEach(profile => {
+          const profileFindings = filteredFindings.filter(f => f.profile_name === profile);
           const rows: SecurityTableRow[] = [];
           
           regions.forEach(region => {
-            const regionFindings = accountFindings.filter(f => f.region === region);
+            const regionFindings = profileFindings.filter(f => f.region === region);
             if (regionFindings.length > 0) {
               const row: SecurityTableRow = { region, critical: 0, high: 0, medium: 0, low: 0, total: 0 };
               let totalCount = 0;
@@ -778,7 +777,7 @@ export default function SecurityDashboard() {
             }
           });
           
-          // Add total row for this account
+          // Add total row for this profile
           if (rows.length > 0) {
             const totalRow: SecurityTableRow = { region: 'Total', critical: 0, high: 0, medium: 0, low: 0, total: 0 };
             let grandTotal = 0;
@@ -792,20 +791,19 @@ export default function SecurityDashboard() {
             
             totalRow.total = grandTotal;
             rows.push(totalRow);
-            accountSummaryData[account] = rows;
+            profileSummaryData[profile] = rows;
           }
         });
         
         // Create global summary data
         const globalSummaryData: SecurityTableRow[] = [];
-        accounts.forEach(account => {
-          const accountFindings = filteredFindings.filter(f => f.account === account);
-          const profileName = accountToProfile[account] || account; // Use profile name if available, otherwise account ID
-          const row: SecurityTableRow = { account: profileName, critical: 0, high: 0, medium: 0, low: 0, total: 0 };
+        profiles.forEach(profile => {
+          const profileFindings = filteredFindings.filter(f => f.profile_name === profile);
+          const row: SecurityTableRow = { account: profile, critical: 0, high: 0, medium: 0, low: 0, total: 0 };
           let totalCount = 0;
           
           severities.forEach(severity => {
-            const count = accountFindings.filter(f => f.severity === severity).length;
+            const count = profileFindings.filter(f => f.severity === severity).length;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (row as any)[severity] = count;
             totalCount += count;
@@ -840,6 +838,11 @@ export default function SecurityDashboard() {
               key: firstColumnTitle.toLowerCase(),
               fixed: 'left',
               width: 150,
+              sorter: (a, b) => {
+                const aValue = a.account || a.region || '';
+                const bValue = b.account || b.region || '';
+                return aValue.localeCompare(bValue);
+              },
             }
           ];
           
@@ -850,6 +853,7 @@ export default function SecurityDashboard() {
               key: severity,
               render: (count: number) => count || 0,
               align: 'center',
+              sorter: (a, b) => (Number(a[severity as keyof SecurityTableRow]) || 0) - (Number(b[severity as keyof SecurityTableRow]) || 0),
             });
           });
           
@@ -861,6 +865,8 @@ export default function SecurityDashboard() {
             align: 'center',
             fixed: 'right',
             width: 100,
+            sorter: (a, b) => a.total - b.total,
+            defaultSortOrder: 'descend',
           });
           
           return columns;
@@ -877,39 +883,72 @@ export default function SecurityDashboard() {
                 {generateGlobalCharts(globalSummaryData)}
                 <Card title="Global Security Hub Summary">
                   <Table
-                    dataSource={globalSummaryData}
+                    dataSource={globalSummaryData.filter(row => row.account !== 'Total')}
                     columns={generateSummaryColumns('Account')}
                     pagination={false}
                     rowKey="account"
                     scroll={{ x: 'max-content' }}
-                    rowClassName={(record) => record.account === 'Total' ? 'ant-table-row-total' : ''}
+                    sortDirections={['descend', 'ascend']}
+                    summary={() => {
+                      const totalRow = globalSummaryData.find(row => row.account === 'Total');
+                      if (!totalRow) return null;
+                      return (
+                        <Table.Summary.Row style={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
+                          <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
+                          {['critical', 'high', 'medium', 'low'].map((severity, index) => (
+                            <Table.Summary.Cell key={severity} index={index + 1} align="center">
+                              {Number(totalRow[severity as keyof SecurityTableRow]) || 0}
+                            </Table.Summary.Cell>
+                          ))}
+                          <Table.Summary.Cell index={5} align="center">
+                            {totalRow.total}
+                          </Table.Summary.Cell>
+                        </Table.Summary.Row>
+                      );
+                    }}
                   />
                 </Card>
               </div>
             ),
           },
-          // Individual account summary tabs
-          ...accounts.map(account => {
-            const profileName = accountToProfile[account] || account;
-            const accountFindings = filteredFindings.filter(f => f.account === account);
+          // Individual profile summary tabs
+          ...profiles.map(profile => {
+            const profileFindings = filteredFindings.filter(f => f.profile_name === profile);
             return {
-              key: `account-${account}`,
-              label: `${profileName} (${accountFindings.length})`,
+              key: `profile-${profile}`,
+              label: `${profile} (${profileFindings.length})`,
               children: (
                 <div>
-                  {generateProfileCharts(profileName, accountSummaryData[account] || [], regions)}
-                  <Card title={`Security Hub Findings for Account - ${profileName}`}>
+                  {generateProfileCharts(profile, profileSummaryData[profile] || [], regions)}
+                  <Card title={`Security Hub Findings for Profile - ${profile}`}>
                     <Table
-                      dataSource={accountSummaryData[account] || []}
+                      dataSource={(profileSummaryData[profile] || []).filter(row => row.region !== 'Total')}
                       columns={generateSummaryColumns('Region')}
                       pagination={false}
                       rowKey="region"
                       scroll={{ x: 'max-content' }}
-                      rowClassName={(record) => record.region === 'Total' ? 'ant-table-row-total' : ''}
+                      sortDirections={['descend', 'ascend']}
+                      summary={() => {
+                        const totalRow = (profileSummaryData[profile] || []).find(row => row.region === 'Total');
+                        if (!totalRow) return null;
+                        return (
+                          <Table.Summary.Row style={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
+                            <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
+                            {['critical', 'high', 'medium', 'low'].map((severity, index) => (
+                              <Table.Summary.Cell key={severity} index={index + 1} align="center">
+                                {Number(totalRow[severity as keyof SecurityTableRow]) || 0}
+                              </Table.Summary.Cell>
+                            ))}
+                            <Table.Summary.Cell index={5} align="center">
+                              {totalRow.total}
+                            </Table.Summary.Cell>
+                          </Table.Summary.Row>
+                        );
+                      }}
                     />
                   </Card>
                   <AccountFindingsTable 
-                    accountFindings={accountFindings}
+                    accountFindings={profileFindings}
                     findingsColumns={findingsColumns}
                   />
                 </div>

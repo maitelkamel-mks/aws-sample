@@ -143,6 +143,7 @@ export default function CostDashboard() {
         key: 'service',
         fixed: 'left',
         width: 150,
+        sorter: (a, b) => a.service.localeCompare(b.service),
       }
     ];
     
@@ -153,6 +154,7 @@ export default function CostDashboard() {
         key: period,
         render: (amount: number) => amount ? `$${amount.toFixed(2)}` : '$0.00',
         align: 'right',
+        sorter: (a, b) => (Number(a[period]) || 0) - (Number(b[period]) || 0),
       });
     });
     
@@ -164,6 +166,8 @@ export default function CostDashboard() {
       align: 'right',
       fixed: 'right',
       width: 120,
+      sorter: (a, b) => a.total - b.total,
+      defaultSortOrder: 'descend',
     });
     
     return columns;
@@ -178,6 +182,7 @@ export default function CostDashboard() {
         key: 'account',
         fixed: 'left',
         width: 150,
+        sorter: (a, b) => a.account.localeCompare(b.account),
       }
     ];
     
@@ -188,6 +193,7 @@ export default function CostDashboard() {
         key: period,
         render: (amount: number) => amount ? `$${amount.toFixed(2)}` : '$0.00',
         align: 'right',
+        sorter: (a, b) => (Number(a[period]) || 0) - (Number(b[period]) || 0),
       });
     });
     
@@ -199,6 +205,8 @@ export default function CostDashboard() {
       align: 'right',
       fixed: 'right',
       width: 120,
+      sorter: (a, b) => a.total - b.total,
+      defaultSortOrder: 'descend',
     });
     
     return columns;
@@ -736,12 +744,29 @@ export default function CostDashboard() {
                 {generateAccountCharts(accountTotalData, periods)}
                 <Card title="Cost total per account">
                   <Table
-                    dataSource={accountTotalData}
+                    dataSource={accountTotalData.filter(row => row.account !== 'Total')}
                     columns={generateAccountColumns(periods)}
                     pagination={false}
                     rowKey="account"
                     scroll={{ x: 'max-content' }}
-                    rowClassName={(record) => record.account === 'Total' ? 'ant-table-row-total' : ''}
+                    sortDirections={['descend', 'ascend']}
+                    summary={() => {
+                      const totalRow = accountTotalData.find(row => row.account === 'Total');
+                      if (!totalRow) return null;
+                      return (
+                        <Table.Summary.Row style={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
+                          <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
+                          {periods.map((period, index) => (
+                            <Table.Summary.Cell key={period} index={index + 1} align="right">
+                              ${(Number(totalRow[period]) || 0).toFixed(2)}
+                            </Table.Summary.Cell>
+                          ))}
+                          <Table.Summary.Cell index={periods.length + 1} align="right">
+                            ${totalRow.total.toFixed(2)}
+                          </Table.Summary.Cell>
+                        </Table.Summary.Row>
+                      );
+                    }}
                   />
                 </Card>
               </div>
@@ -756,12 +781,29 @@ export default function CostDashboard() {
                 {generateServiceCharts(serviceTotalData, periods)}
                 <Card title="Cost total per service">
                   <Table
-                    dataSource={serviceTotalData}
+                    dataSource={serviceTotalData.filter(row => row.service !== 'Total')}
                     columns={generateServiceColumns(periods)}
                     pagination={false}
                     rowKey="service"
                     scroll={{ x: 'max-content' }}
-                    rowClassName={(record) => record.service === 'Total' ? 'ant-table-row-total' : ''}
+                    sortDirections={['descend', 'ascend']}
+                    summary={() => {
+                      const totalRow = serviceTotalData.find(row => row.service === 'Total');
+                      if (!totalRow) return null;
+                      return (
+                        <Table.Summary.Row style={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
+                          <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
+                          {periods.map((period, index) => (
+                            <Table.Summary.Cell key={period} index={index + 1} align="right">
+                              ${(Number(totalRow[period]) || 0).toFixed(2)}
+                            </Table.Summary.Cell>
+                          ))}
+                          <Table.Summary.Cell index={periods.length + 1} align="right">
+                            ${totalRow.total.toFixed(2)}
+                          </Table.Summary.Cell>
+                        </Table.Summary.Row>
+                      );
+                    }}
                   />
                 </Card>
               </div>
@@ -776,12 +818,29 @@ export default function CostDashboard() {
                 {generateProfileCharts(profile, profileServiceData[profile], periods)}
                 <Card title={`Cost per service for account - ${profile}`}>
                   <Table
-                    dataSource={profileServiceData[profile]}
+                    dataSource={profileServiceData[profile].filter(row => row.service !== 'Total')}
                     columns={generateServiceColumns(periods)}
                     pagination={false}
                     rowKey="service"
                     scroll={{ x: 'max-content' }}
-                    rowClassName={(record) => record.service === 'Total' ? 'ant-table-row-total' : ''}
+                    sortDirections={['descend', 'ascend']}
+                    summary={() => {
+                      const totalRow = profileServiceData[profile].find(row => row.service === 'Total');
+                      if (!totalRow) return null;
+                      return (
+                        <Table.Summary.Row style={{ backgroundColor: '#f5f5f5', fontWeight: 'bold' }}>
+                          <Table.Summary.Cell index={0}>Total</Table.Summary.Cell>
+                          {periods.map((period, index) => (
+                            <Table.Summary.Cell key={period} index={index + 1} align="right">
+                              ${(Number(totalRow[period]) || 0).toFixed(2)}
+                            </Table.Summary.Cell>
+                          ))}
+                          <Table.Summary.Cell index={periods.length + 1} align="right">
+                            ${totalRow.total.toFixed(2)}
+                          </Table.Summary.Cell>
+                        </Table.Summary.Row>
+                      );
+                    }}
                   />
                 </Card>
               </div>

@@ -19,6 +19,7 @@ export interface SecurityFinding {
   updated_at: string;
   description?: string;
   remediation?: string;
+  profile_name?: string;
 }
 
 export interface SecuritySummary {

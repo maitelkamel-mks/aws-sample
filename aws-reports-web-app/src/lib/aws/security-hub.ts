@@ -257,7 +257,13 @@ export class SecurityHubService {
             this.getSecuritySummary(profile, region),
           ]);
           
-          allFindings.push(...findings);
+          // Add profile information to each finding
+          const findingsWithProfile = findings.map(finding => ({
+            ...finding,
+            profile_name: profile,
+          }));
+          
+          allFindings.push(...findingsWithProfile);
           summaries.push(summary);
         } catch (error) {
           const errorMessage = `Profile "${profile}" in region "${region}": ${parseAWSError(error)}`;
