@@ -5,8 +5,17 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
 ## Features
 
 - **Cost Reporting**: Interactive AWS cost analysis with Cost Explorer API integration
+  - Sortable tables with customizable pagination (10, 20, 50, 100 items per page)
+  - Fixed total rows in table footers for easy reference
+  - Visual charts and graphs for cost analysis
+  - Multiple view modes: Account totals, Service totals, Individual account breakdown
 - **Security Dashboard**: Security Hub findings aggregation and analysis
+  - Advanced table sorting with multiple severity levels
+  - Profile-specific findings tracking with accurate mapping
+  - Enhanced pagination controls with quick jumper and size changer
+  - Real-time filtering by severity, workflow state, and compliance status
 - **Multi-Account Support**: Manage multiple AWS profiles and accounts
+- **HTTP Proxy Support**: Automatic proxy configuration when HTTP_PROXY environment variables are set
 - **Real-time Filtering**: Interactive filtering and search capabilities
 - **Data Export**: Export reports in CSV and JSON formats
 - **Responsive Design**: Mobile-friendly interface using Ant Design
@@ -21,6 +30,7 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
 - AWS credentials with appropriate permissions for:
   - Cost Explorer (for cost reporting)
   - Security Hub (for security findings)
+- Optional: HTTP proxy configuration if required by your network environment
 
 ## Installation
 
@@ -42,7 +52,15 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
    npm run dev:webpack  # Uses traditional Webpack
    ```
 
-4. **Open your browser:**
+4. **Configure HTTP Proxy (Optional):**
+   If your environment requires an HTTP proxy, set environment variables:
+   ```bash
+   export HTTP_PROXY=http://proxy.company.com:8080
+   export HTTPS_PROXY=http://proxy.company.com:8080
+   export NO_PROXY=localhost,127.0.0.1,.company.com
+   ```
+
+5. **Open your browser:**
    Navigate to [http://localhost:3000](http://localhost:3000)
 
 ## Usage
@@ -71,13 +89,24 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
 2. Select AWS profiles and date range
 3. Choose granularity (Daily/Monthly)
 4. Click "Generate Report"
-5. Export data as CSV or JSON if needed
+5. **Enhanced Table Features:**
+   - Sort by service name, account name, or total cost (descending by default)
+   - Customize page size and navigate through large datasets
+   - View multiple perspectives: Account totals, Service totals, Individual account breakdown
+   - Fixed total rows show aggregate costs at the bottom of each table
+6. Export data as CSV or JSON if needed
 
 #### Security Dashboard
 1. Navigate to "Security Hub" page
 2. Select AWS profiles and regions
 3. Click "Refresh Findings"
 4. Use filters to narrow down results by severity, status, or compliance
+5. **Enhanced Table Features:**
+   - Sort by any column (severity levels, total findings, account/region names)
+   - Change page size (10, 20, 50, 100 items) using the dropdown
+   - Jump to specific pages using the quick jumper
+   - Total rows are fixed in table footers for easy reference
+   - Each profile tab maintains its own sorting and pagination preferences
 
 ## Directory Structure
 
@@ -122,7 +151,8 @@ These files are automatically created when you save configurations through the w
 
 ### System
 - `GET /api/aws/profiles` - List AWS profiles
-- `GET /api/health` - Health check
+- `POST /api/aws/test-connectivity` - Test AWS connectivity for profiles
+- `GET /api/health` - Health check (includes proxy configuration status)
 
 ## Development
 
@@ -211,6 +241,19 @@ The application can be deployed as:
    - Check the dashboard for connection status and troubleshooting guidance
    - Error messages include specific steps to resolve credential problems
    - Special handling for SSO session expiration with exact commands to fix
+
+8. **HTTP Proxy connection issues**
+   - Check the health endpoint at `/api/health` to see proxy configuration status
+   - Verify HTTP_PROXY, HTTPS_PROXY environment variables are set correctly
+   - Ensure NO_PROXY includes localhost and internal domains
+   - Proxy configuration is automatically detected and applied to all AWS SDK calls
+   - Console logs will show "Using HTTP proxy" messages when proxy is active
+
+9. **Table pagination and sorting issues**
+   - Each table maintains its own pagination and sorting state independently
+   - Page size changes are applied immediately and persist during the session
+   - Total rows are always displayed in table footers and don't participate in sorting
+   - If pagination controls appear disabled, ensure there's enough data to paginate
 
 ### AWS Permissions Required
 
