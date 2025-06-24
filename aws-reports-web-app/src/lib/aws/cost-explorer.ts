@@ -1,5 +1,6 @@
 import { CostExplorerClient, GetCostAndUsageCommand, GetCostAndUsageCommandInput } from '@aws-sdk/client-cost-explorer';
 import { AWSCredentialsManager } from './credentials';
+import { createAWSClientConfig } from './client-config';
 import { CostData, CostSummary } from '../types/cost';
 import { parseAWSError } from './error-parser';
 
@@ -21,10 +22,8 @@ export class CostExplorerService {
   ): Promise<CostData[]> {
     try {
       const credentials = await this.credentialsManager.getCredentialsForProfile(profile);
-      const client = new CostExplorerClient({
-        credentials,
-        region: 'us-east-1', // Cost Explorer is only available in us-east-1
-      });
+      const clientConfig = createAWSClientConfig('us-east-1', credentials); // Cost Explorer is only available in us-east-1
+      const client = new CostExplorerClient(clientConfig);
 
       const input: GetCostAndUsageCommandInput = {
         TimePeriod: {
@@ -100,10 +99,12 @@ export class CostExplorerService {
       }
       
       if (filters.length === 1) {
-        input.Filter = filters[0];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        input.Filter = filters[0] as any;
       } else if (filters.length > 1) {
         input.Filter = {
-          And: filters,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          And: filters as any,
         };
       }
 

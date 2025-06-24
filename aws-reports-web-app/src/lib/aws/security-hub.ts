@@ -1,5 +1,6 @@
 import { SecurityHubClient, GetFindingsCommand, GetFindingsCommandInput } from '@aws-sdk/client-securityhub';
 import { AWSCredentialsManager } from './credentials';
+import { createAWSClientConfig } from './client-config';
 import { SecurityFinding, SecuritySummary, SecurityOverview } from '../types/security';
 import { parseAWSError } from './error-parser';
 
@@ -22,10 +23,8 @@ export class SecurityHubService {
   ): Promise<SecurityFinding[]> {
     try {
       const credentials = await this.credentialsManager.getCredentialsForProfile(profile);
-      const client = new SecurityHubClient({
-        credentials,
-        region,
-      });
+      const clientConfig = createAWSClientConfig(region, credentials);
+      const client = new SecurityHubClient(clientConfig);
 
       const input: GetFindingsCommandInput = {
         MaxResults: 100,
@@ -97,11 +96,13 @@ export class SecurityHubService {
               
               // Extract resource name based on resource type
               if (resource.Details) {
-                const details = resource.Details;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const details = resource.Details as any;
                 
                 // Try to extract name from various AWS resource types
                 if (details.AwsEc2Instance?.InstanceId) {
-                  resourceName = details.AwsEc2Instance.Tags?.find(tag => tag.Key === 'Name')?.Value || details.AwsEc2Instance.InstanceId;
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  resourceName = details.AwsEc2Instance.Tags?.find((tag: any) => tag.Key === 'Name')?.Value || details.AwsEc2Instance.InstanceId;
                 } else if (details.AwsS3Bucket?.Name) {
                   resourceName = details.AwsS3Bucket.Name;
                 } else if (details.AwsRdsDbInstance?.DBInstanceIdentifier) {

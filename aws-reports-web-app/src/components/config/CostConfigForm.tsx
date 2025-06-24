@@ -65,8 +65,8 @@ export default function CostConfigForm() {
     } as CostConfig;
     
     // Remove the include_* fields as they're not part of the config schema
-    delete (costConfig as any).include_taxes;
-    delete (costConfig as any).include_support;
+    delete (costConfig as unknown as Record<string, unknown>).include_taxes;
+    delete (costConfig as unknown as Record<string, unknown>).include_support;
     
     saveMutation.mutate(costConfig);
   };

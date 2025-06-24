@@ -2,7 +2,7 @@
 
 import { List, Typography, Tag, Spin, Alert, Button, Space } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined, LoadingOutlined, ApiOutlined } from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 
 const { Text } = Typography;
@@ -18,7 +18,6 @@ interface ConnectivityResult {
 
 export default function ProfilesDisplay() {
   const [connectivityResults, setConnectivityResults] = useState<ConnectivityResult[]>([]);
-  const queryClient = useQueryClient();
 
   const { data: profiles, isLoading, error } = useQuery({
     queryKey: ['aws-profiles'],
@@ -188,7 +187,7 @@ export default function ProfilesDisplay() {
               <li><code>~/.aws/config</code> - Profile configurations</li>
             </ul>
             <p>To add more profiles, use <code>aws configure --profile profile-name</code></p>
-            <p><strong>Connectivity Testing:</strong> Click "Test All Connectivity" to verify AWS access for each profile. This will check if credentials are valid and show account information.</p>
+            <p><strong>Connectivity Testing:</strong> Click &quot;Test All Connectivity&quot; to verify AWS access for each profile. This will check if credentials are valid and show account information.</p>
           </div>
         }
         type="info"

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { fromIni } from '@aws-sdk/credential-providers';
+import { createAWSClientConfig } from '@/lib/aws/client-config';
 import { ApiResponse } from '@/lib/types';
 
 interface ConnectivityResult {
@@ -30,10 +31,9 @@ export async function POST(request: NextRequest) {
     for (const profile of profiles) {
       try {
         // Create STS client with the specific profile
-        const stsClient = new STSClient({
-          credentials: fromIni({ profile }),
-          region: 'us-east-1', // STS is available in all regions, using us-east-1 as default
-        });
+        const credentials = fromIni({ profile });
+        const clientConfig = createAWSClientConfig('us-east-1', credentials); // STS is available in all regions, using us-east-1 as default
+        const stsClient = new STSClient(clientConfig);
 
         // Try to get caller identity to test connectivity
         const command = new GetCallerIdentityCommand({});

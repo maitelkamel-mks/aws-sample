@@ -152,12 +152,16 @@ interface SecurityResponse {
   warnings?: string[];
 }
 
-const severityColors = {
-  CRITICAL: '#ff4d4f',
-  HIGH: '#fa8c16',
-  MEDIUM: '#faad14',
-  LOW: '#52c41a',
-};
+interface SecurityTableRow {
+  region?: string;
+  account?: string;
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  total: number;
+}
+
 
 const severityIcons = {
   CRITICAL: <ExclamationCircleOutlined />,
@@ -184,10 +188,10 @@ export default function SecurityDashboard() {
   const { message } = App.useApp();
   const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
   const [selectedRegions, setSelectedRegions] = useState<string[]>(['us-east-1']);
-  const [severityFilter, setSeverityFilter] = useState<string[]>([]);
-  const [workflowFilter, setWorkflowFilter] = useState<string[]>([]);
-  const [complianceFilter, setComplianceFilter] = useState<string[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [severityFilter] = useState<string[]>([]);
+  const [workflowFilter] = useState<string[]>([]);
+  const [complianceFilter] = useState<string[]>([]);
+  const [searchTerm] = useState('');
   const [useConfigDefaults, setUseConfigDefaults] = useState(true);
 
   // Chart colors for severities (matching Python script)
@@ -362,7 +366,7 @@ export default function SecurityDashboard() {
   ];
 
   // Generate charts for individual profile
-  const generateProfileCharts = (profile: string, data: any[], regions: string[]) => {
+  const generateProfileCharts = (profile: string, data: SecurityTableRow[], regions: string[]) => {
     if (!data || data.length === 0) return null;
     
     const nonTotalData = data.filter(row => row.region !== 'Total');
@@ -376,7 +380,7 @@ export default function SecurityDashboard() {
         data: regions.filter(region => nonTotalData.some(row => row.region === region))
                      .map(region => {
                        const row = nonTotalData.find(r => r.region === region);
-                       return row ? (row[severity] || 0) : 0;
+                       return row ? (Number(row[severity as keyof SecurityTableRow]) || 0) : 0;
                      }),
         backgroundColor: severityColors[severity as keyof typeof severityColors],
         borderColor: severityColors[severity as keyof typeof severityColors],
@@ -390,7 +394,7 @@ export default function SecurityDashboard() {
     const pieColors: string[] = [];
     
     severities.forEach(severity => {
-      const total = nonTotalData.reduce((sum, row) => sum + (row[severity] || 0), 0);
+      const total = nonTotalData.reduce((sum, row) => sum + (Number(row[severity as keyof SecurityTableRow]) || 0), 0);
       if (total > 0) {
         pieLabels.push(severity);
         pieData.push(total);
@@ -407,6 +411,7 @@ export default function SecurityDashboard() {
         },
         tooltip: {
           callbacks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: function(context: any) {
               return `${context.dataset.label}: ${context.raw}`;
             },
@@ -420,6 +425,7 @@ export default function SecurityDashboard() {
         y: {
           stacked: true,
           ticks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             callback: function(value: any) {
               return value;
             },
@@ -437,6 +443,7 @@ export default function SecurityDashboard() {
         },
         tooltip: {
           callbacks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: function(context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -468,7 +475,7 @@ export default function SecurityDashboard() {
   };
 
   // Generate charts for global summary
-  const generateGlobalCharts = (data: any[]) => {
+  const generateGlobalCharts = (data: SecurityTableRow[]) => {
     if (!data || data.length === 0) return null;
     
     const nonTotalData = data.filter(row => row.account !== 'Total');
@@ -482,7 +489,7 @@ export default function SecurityDashboard() {
         label: profile,
         data: severities.map(severity => {
           const row = nonTotalData.find(r => r.account === profile);
-          return row ? (row[severity] || 0) : 0;
+          return row ? (Number(row[severity as keyof SecurityTableRow]) || 0) : 0;
         }),
         backgroundColor: profileColors[index % profileColors.length],
         borderColor: profileColors[index % profileColors.length],
@@ -497,7 +504,7 @@ export default function SecurityDashboard() {
     
     nonTotalData.forEach((row, index) => {
       if (row.total > 0) {
-        pieLabels.push(row.account);
+        pieLabels.push(row.account || 'Unknown');
         pieData.push(row.total);
         pieColors.push(profileColors[index % profileColors.length]);
       }
@@ -512,6 +519,7 @@ export default function SecurityDashboard() {
         },
         tooltip: {
           callbacks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: function(context: any) {
               return `${context.dataset.label}: ${context.raw}`;
             },
@@ -525,6 +533,7 @@ export default function SecurityDashboard() {
         y: {
           stacked: true,
           ticks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             callback: function(value: any) {
               return value;
             },
@@ -542,6 +551,7 @@ export default function SecurityDashboard() {
         },
         tooltip: {
           callbacks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: function(context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -745,20 +755,21 @@ export default function SecurityDashboard() {
         });
         
         // Create account summary data (like Python script's account tables)
-        const accountSummaryData: Record<string, any[]> = {};
+        const accountSummaryData: Record<string, SecurityTableRow[]> = {};
         accounts.forEach(account => {
           const accountFindings = filteredFindings.filter(f => f.account === account);
-          const rows: any[] = [];
+          const rows: SecurityTableRow[] = [];
           
           regions.forEach(region => {
             const regionFindings = accountFindings.filter(f => f.region === region);
             if (regionFindings.length > 0) {
-              const row: any = { region };
+              const row: SecurityTableRow = { region, critical: 0, high: 0, medium: 0, low: 0, total: 0 };
               let totalCount = 0;
               
               severities.forEach(severity => {
                 const count = regionFindings.filter(f => f.severity === severity).length;
-                row[severity] = count;
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (row as any)[severity] = count;
                 totalCount += count;
               });
               
@@ -769,12 +780,13 @@ export default function SecurityDashboard() {
           
           // Add total row for this account
           if (rows.length > 0) {
-            const totalRow: any = { region: 'Total' };
+            const totalRow: SecurityTableRow = { region: 'Total', critical: 0, high: 0, medium: 0, low: 0, total: 0 };
             let grandTotal = 0;
             
             severities.forEach(severity => {
-              const severityTotal = rows.reduce((sum, row) => sum + (row[severity] || 0), 0);
-              totalRow[severity] = severityTotal;
+              const severityTotal = rows.reduce((sum, row) => sum + (Number(row[severity as keyof SecurityTableRow]) || 0), 0);
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (totalRow as any)[severity] = severityTotal;
               grandTotal += severityTotal;
             });
             
@@ -785,16 +797,17 @@ export default function SecurityDashboard() {
         });
         
         // Create global summary data
-        const globalSummaryData: any[] = [];
+        const globalSummaryData: SecurityTableRow[] = [];
         accounts.forEach(account => {
           const accountFindings = filteredFindings.filter(f => f.account === account);
           const profileName = accountToProfile[account] || account; // Use profile name if available, otherwise account ID
-          const row: any = { account: profileName };
+          const row: SecurityTableRow = { account: profileName, critical: 0, high: 0, medium: 0, low: 0, total: 0 };
           let totalCount = 0;
           
           severities.forEach(severity => {
             const count = accountFindings.filter(f => f.severity === severity).length;
-            row[severity] = count;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (row as any)[severity] = count;
             totalCount += count;
           });
           
@@ -804,12 +817,13 @@ export default function SecurityDashboard() {
         
         // Add global total row
         if (globalSummaryData.length > 0) {
-          const globalTotalRow: any = { account: 'Total' };
+          const globalTotalRow: SecurityTableRow = { account: 'Total', critical: 0, high: 0, medium: 0, low: 0, total: 0 };
           let grandTotal = 0;
           
           severities.forEach(severity => {
-            const severityTotal = globalSummaryData.reduce((sum, row) => sum + (row[severity] || 0), 0);
-            globalTotalRow[severity] = severityTotal;
+            const severityTotal = globalSummaryData.reduce((sum, row) => sum + (Number(row[severity as keyof SecurityTableRow]) || 0), 0);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (globalTotalRow as any)[severity] = severityTotal;
             grandTotal += severityTotal;
           });
           
@@ -819,7 +833,7 @@ export default function SecurityDashboard() {
         
         // Generate columns for summary tables
         const generateSummaryColumns = (firstColumnTitle: string) => {
-          const columns: ColumnsType<any> = [
+          const columns: ColumnsType<SecurityTableRow> = [
             {
               title: firstColumnTitle,
               dataIndex: firstColumnTitle.toLowerCase(),

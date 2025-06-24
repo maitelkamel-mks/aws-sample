@@ -5,7 +5,7 @@ home_region: "eu-west-1"
 
 # AWS profiles to process
 profiles:
-  - prod
+  - mks-vizcon
 
 # New workflow status to apply to matching findings
 # Valid values: NEW, NOTIFIED, RESOLVED, SUPPRESSED
@@ -13,13 +13,13 @@ new_workflow_status: "SUPPRESSED"
 
 # Findings search parameters - each entry defines a search query
 findings_search_parameters:
-  - description: "Findings from Patch Manager"
-    workflow_status: "NEW"
-    product_name: "Patch Manager"
+  # - description: "Findings from Patch Manager"
+  #   workflow_status: "NEW"
+  #   product_name: "Patch Manager"
 
-  - description: "S3 MFA delete findings"
-    workflow_status: "NEW"
-    title: "S3 general purpose buckets should have MFA delete enabled"
+  # - description: "S3 MFA delete findings"
+  #   workflow_status: "NEW"
+  #   title: "S3 general purpose buckets should have MFA delete enabled"
 
   - description: "IAM Access Analyzer findings"
     workflow_status: "NEW"

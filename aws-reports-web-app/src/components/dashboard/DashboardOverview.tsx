@@ -1,6 +1,6 @@
 'use client';
 
-import { Card, Row, Col, Typography, Button, Space, Alert, List } from 'antd';
+import { Card, Row, Col, Typography, Button, Alert, List } from 'antd';
 import { 
   DollarOutlined, 
   SecurityScanOutlined, 

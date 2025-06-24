@@ -38,6 +38,19 @@ interface CostResponse {
   summaries: CostSummary[];
 }
 
+interface ServiceTableRow {
+  service: string;
+  total: number;
+  [key: string]: string | number;
+}
+
+interface AccountTableRow {
+  account: string;
+  total: number;
+  [key: string]: string | number;
+}
+
+
 export default function CostDashboard() {
   const { message } = App.useApp();
   const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
@@ -123,7 +136,7 @@ export default function CostDashboard() {
 
   // Generate service columns for individual account tables
   const generateServiceColumns = (periods: string[]) => {
-    const columns: ColumnsType<any> = [
+    const columns: ColumnsType<ServiceTableRow> = [
       {
         title: 'Service',
         dataIndex: 'service',
@@ -158,7 +171,7 @@ export default function CostDashboard() {
 
   // Generate account total columns
   const generateAccountColumns = (periods: string[]) => {
-    const columns: ColumnsType<any> = [
+    const columns: ColumnsType<AccountTableRow> = [
       {
         title: 'Account',
         dataIndex: 'account',
@@ -192,7 +205,7 @@ export default function CostDashboard() {
   };
 
   // Generate charts for individual profile
-  const generateProfileCharts = (profile: string, data: any[], periods: string[]) => {
+  const generateProfileCharts = (profile: string, data: ServiceTableRow[], periods: string[]) => {
     const serviceData = data.filter(row => row.service !== 'Total');
     
     // Stacked bar chart data
@@ -226,6 +239,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: function(context: any) {
               return `${context.dataset.label || context.label}: $${context.raw.toLocaleString()}`;
             },
@@ -239,6 +253,7 @@ export default function CostDashboard() {
         y: {
           stacked: true,
           ticks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             callback: function(value: any) {
               return '$' + value.toLocaleString();
             },
@@ -256,6 +271,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: function(context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -287,7 +303,7 @@ export default function CostDashboard() {
   };
 
   // Generate charts for account totals
-  const generateAccountCharts = (data: any[], periods: string[]) => {
+  const generateAccountCharts = (data: AccountTableRow[], periods: string[]) => {
     const accountData = data.filter(row => row.account !== 'Total');
     
     // Stacked bar chart data
@@ -321,6 +337,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: function(context: any) {
               return `${context.dataset.label || context.label}: $${context.raw.toLocaleString()}`;
             },
@@ -334,6 +351,7 @@ export default function CostDashboard() {
         y: {
           stacked: true,
           ticks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             callback: function(value: any) {
               return '$' + value.toLocaleString();
             },
@@ -351,6 +369,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: function(context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -382,7 +401,7 @@ export default function CostDashboard() {
   };
 
   // Generate charts for service totals
-  const generateServiceCharts = (data: any[], periods: string[]) => {
+  const generateServiceCharts = (data: ServiceTableRow[], periods: string[]) => {
     const serviceData = data.filter(row => row.service !== 'Total');
     
     // Stacked bar chart data
@@ -416,6 +435,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: function(context: any) {
               return `${context.dataset.label || context.label}: $${context.raw.toLocaleString()}`;
             },
@@ -429,6 +449,7 @@ export default function CostDashboard() {
         y: {
           stacked: true,
           ticks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             callback: function(value: any) {
               return '$' + value.toLocaleString();
             },
@@ -446,6 +467,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             label: function(context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -608,14 +630,14 @@ export default function CostDashboard() {
         const services = [...new Set(costData.data.map(d => d.service))].sort();
         
         // Create service data for each profile
-        const profileServiceData: Record<string, any[]> = {};
+        const profileServiceData: Record<string, ServiceTableRow[]> = {};
         profiles.forEach(profile => {
           const profileData = costData.data.filter(d => d.profile === profile);
-          const serviceMap: Record<string, any> = {};
+          const serviceMap: Record<string, ServiceTableRow> = {};
           
           services.forEach(service => {
             const serviceData = profileData.filter(d => d.service === service);
-            const row: any = { service };
+            const row: ServiceTableRow = { service, total: 0 };
             let total = 0;
             
             periods.forEach(period => {
@@ -632,10 +654,10 @@ export default function CostDashboard() {
           const rows = Object.values(serviceMap);
           
           // Add total row for this profile
-          const totalRow: any = { service: 'Total' };
+          const totalRow: ServiceTableRow = { service: 'Total', total: 0 };
           let grandTotal = 0;
           periods.forEach(period => {
-            const periodTotal = rows.reduce((sum, row) => sum + (row[period] || 0), 0);
+            const periodTotal = rows.reduce((sum, row) => sum + (Number(row[period]) || 0), 0);
             totalRow[period] = periodTotal;
             grandTotal += periodTotal;
           });
@@ -646,10 +668,10 @@ export default function CostDashboard() {
         });
         
         // Create account total data
-        const accountTotalData: any[] = [];
+        const accountTotalData: AccountTableRow[] = [];
         profiles.forEach(profile => {
           const profileData = costData.data.filter(d => d.profile === profile);
-          const row: any = { account: profile };
+          const row: AccountTableRow = { account: profile, total: 0 };
           let total = 0;
           
           periods.forEach(period => {
@@ -664,10 +686,10 @@ export default function CostDashboard() {
         });
         
         // Add total row for accounts
-        const accountTotalRow: any = { account: 'Total' };
+        const accountTotalRow: AccountTableRow = { account: 'Total', total: 0 };
         let accountGrandTotal = 0;
         periods.forEach(period => {
-          const periodTotal = accountTotalData.reduce((sum, row) => sum + (row[period] || 0), 0);
+          const periodTotal = accountTotalData.reduce((sum, row) => sum + (Number(row[period]) || 0), 0);
           accountTotalRow[period] = periodTotal;
           accountGrandTotal += periodTotal;
         });
@@ -675,10 +697,10 @@ export default function CostDashboard() {
         accountTotalData.push(accountTotalRow);
         
         // Create service total data
-        const serviceTotalData: any[] = [];
+        const serviceTotalData: ServiceTableRow[] = [];
         services.forEach(service => {
           const serviceData = costData.data.filter(d => d.service === service);
-          const row: any = { service };
+          const row: ServiceTableRow = { service, total: 0 };
           let total = 0;
           
           periods.forEach(period => {
@@ -693,10 +715,10 @@ export default function CostDashboard() {
         });
         
         // Add total row for services
-        const serviceTotalRow: any = { service: 'Total' };
+        const serviceTotalRow: ServiceTableRow = { service: 'Total', total: 0 };
         let serviceGrandTotal = 0;
         periods.forEach(period => {
-          const periodTotal = serviceTotalData.reduce((sum, row) => sum + (row[period] || 0), 0);
+          const periodTotal = serviceTotalData.reduce((sum, row) => sum + (Number(row[period]) || 0), 0);
           serviceTotalRow[period] = periodTotal;
           serviceGrandTotal += periodTotal;
         });
