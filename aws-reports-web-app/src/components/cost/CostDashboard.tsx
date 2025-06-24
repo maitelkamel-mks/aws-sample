@@ -533,7 +533,7 @@ export default function CostDashboard() {
               onClick={loadFromConfig}
               size="small"
             >
-              Load Defaults: {costConfig.report_name}
+              Load Defaults
             </Button>
           </Space>
         )}

@@ -1,6 +1,6 @@
 'use client';
 
-import { Form, Input, Select, Button, Spin, App, Typography } from 'antd';
+import { Form, Select, Button, Spin, App, Typography } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SecurityConfig } from '@/lib/types/security';
@@ -66,7 +66,6 @@ export default function SecurityConfigForm() {
   ];
 
   const initialValues = config || {
-    report_name: 'Security Hub Dashboard',
     profiles: [],
     home_region: 'us-east-1',
   };
@@ -92,14 +91,6 @@ export default function SecurityConfigForm() {
         onFinish={onFinish}
         initialValues={initialValues}
       >
-      <Form.Item
-        label="Report Name"
-        name="report_name"
-        rules={[{ required: true, message: 'Please enter a report name' }]}
-      >
-        <Input placeholder="Enter report name" />
-      </Form.Item>
-
       <Form.Item
         label="AWS Profiles"
         name="profiles"

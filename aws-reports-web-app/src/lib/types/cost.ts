@@ -1,5 +1,4 @@
 export interface CostConfig {
-  report_name: string;
   profiles: string[];
   services: string[];
   start_date: string;

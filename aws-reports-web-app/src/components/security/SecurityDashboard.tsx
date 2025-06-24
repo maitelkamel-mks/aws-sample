@@ -629,7 +629,7 @@ export default function SecurityDashboard() {
               onClick={loadFromConfig}
               size="small"
             >
-              Load from Config: {securityConfig.report_name}
+              Load from Config
             </Button>
           </Space>
         )}

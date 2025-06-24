@@ -1,5 +1,4 @@
 export interface SecurityConfig {
-  report_name: string;
   profiles: string[];
   home_region: string;
 }

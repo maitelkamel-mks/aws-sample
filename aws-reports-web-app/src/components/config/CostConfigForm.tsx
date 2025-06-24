@@ -1,6 +1,6 @@
 'use client';
 
-import { Form, Input, Select, Switch, Button, DatePicker, Spin, App, Typography } from 'antd';
+import { Form, Select, Switch, Button, DatePicker, Spin, App, Typography } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CostConfig } from '@/lib/types/cost';
@@ -78,7 +78,6 @@ export default function CostConfigForm() {
     include_taxes: !config.exclude_taxes,
     include_support: !config.exclude_support,
   } : {
-    report_name: 'AWS Cost Report',
     profiles: [],
     services: [],
     start_date: dayjs().subtract(1, 'month'),
@@ -109,15 +108,6 @@ export default function CostConfigForm() {
         onFinish={onFinish}
         initialValues={initialValues}
       >
-      <Form.Item
-        label="Report Name"
-        name="report_name"
-        rules={[{ required: true, message: 'Please enter a report name' }]}
-      >
-        <Input placeholder="Enter report name" />
-      </Form.Item>
-
-
       <Form.Item
         label="AWS Profiles"
         name="profiles"
