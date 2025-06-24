@@ -41,6 +41,7 @@ function AccountFindingsTable({ accountFindings, findingsColumns }: {
   const [localSeverityFilter, setLocalSeverityFilter] = useState<string[]>([]);
   const [localWorkflowFilter, setLocalWorkflowFilter] = useState<string[]>([]);
   const [localComplianceFilter, setLocalComplianceFilter] = useState<string[]>([]);
+  const [localPageSize, setLocalPageSize] = useState(20);
 
   // Filter findings based on local filters
   const localFilteredFindings = accountFindings.filter(finding => {
@@ -124,7 +125,14 @@ function AccountFindingsTable({ accountFindings, findingsColumns }: {
         <Table
           dataSource={localFilteredFindings}
           columns={findingsColumns}
-          pagination={{ pageSize: 20, showSizeChanger: true }}
+          pagination={{ 
+            pageSize: localPageSize, 
+            showSizeChanger: true, 
+            showQuickJumper: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} findings`,
+            onShowSizeChange: (_, size) => setLocalPageSize(size)
+          }}
           rowKey="id"
           scroll={{ x: 1200 }}
           expandable={{
@@ -193,6 +201,14 @@ export default function SecurityDashboard() {
   const [complianceFilter] = useState<string[]>([]);
   const [searchTerm] = useState('');
   const [useConfigDefaults, setUseConfigDefaults] = useState(true);
+  const [globalSummaryPageSize, setGlobalSummaryPageSize] = useState(20);
+  const [profileSummaryPageSizes, setProfileSummaryPageSizes] = useState<Record<string, number>>({});
+
+  // Helper functions for profile page sizes
+  const getProfilePageSize = (profile: string) => profileSummaryPageSizes[profile] || 20;
+  const setProfilePageSize = (profile: string, size: number) => {
+    setProfileSummaryPageSizes(prev => ({ ...prev, [profile]: size }));
+  };
 
   // Chart colors for severities (matching Python script)
   const severityColors = {
@@ -885,7 +901,14 @@ export default function SecurityDashboard() {
                   <Table
                     dataSource={globalSummaryData.filter(row => row.account !== 'Total')}
                     columns={generateSummaryColumns('Account')}
-                    pagination={false}
+                    pagination={{ 
+                      pageSize: globalSummaryPageSize, 
+                      showSizeChanger: true, 
+                      showQuickJumper: true,
+                      pageSizeOptions: ['10', '20', '50', '100'],
+                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} accounts`,
+                      onShowSizeChange: (_, size) => setGlobalSummaryPageSize(size)
+                    }}
                     rowKey="account"
                     scroll={{ x: 'max-content' }}
                     sortDirections={['descend', 'ascend']}
@@ -924,7 +947,14 @@ export default function SecurityDashboard() {
                     <Table
                       dataSource={(profileSummaryData[profile] || []).filter(row => row.region !== 'Total')}
                       columns={generateSummaryColumns('Region')}
-                      pagination={false}
+                      pagination={{ 
+                        pageSize: getProfilePageSize(profile), 
+                        showSizeChanger: true, 
+                        showQuickJumper: true,
+                        pageSizeOptions: ['10', '20', '50', '100'],
+                        showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} regions`,
+                        onShowSizeChange: (_, size) => setProfilePageSize(profile, size)
+                      }}
                       rowKey="region"
                       scroll={{ x: 'max-content' }}
                       sortDirections={['descend', 'ascend']}
