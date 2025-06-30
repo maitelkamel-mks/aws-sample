@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const profiles = searchParams.get('profiles')?.split(',') || [];
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
-    const granularity = searchParams.get('granularity') as 'DAILY' | 'MONTHLY' || 'MONTHLY';
+    const granularity = searchParams.get('granularity') as 'HOURLY' | 'DAILY' | 'MONTHLY' || 'MONTHLY';
     const services = searchParams.get('services')?.split(',');
     const excludeTaxes = searchParams.get('excludeTaxes') === 'true';
     const excludeSupport = searchParams.get('excludeSupport') === 'true';

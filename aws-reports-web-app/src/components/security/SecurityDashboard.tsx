@@ -33,9 +33,9 @@ const { Title } = Typography;
 const { Search } = Input;
 
 // Component for account findings table with local filters
-function AccountFindingsTable({ accountFindings, findingsColumns }: { 
-  accountFindings: SecurityFinding[], 
-  findingsColumns: ColumnsType<SecurityFinding> 
+function AccountFindingsTable({ accountFindings, findingsColumns }: {
+  accountFindings: SecurityFinding[],
+  findingsColumns: ColumnsType<SecurityFinding>
 }) {
   const [localSearchTerm, setLocalSearchTerm] = useState('');
   const [localSeverityFilter, setLocalSeverityFilter] = useState<string[]>([]);
@@ -45,17 +45,17 @@ function AccountFindingsTable({ accountFindings, findingsColumns }: {
 
   // Filter findings based on local filters
   const localFilteredFindings = accountFindings.filter(finding => {
-    const matchesSearch = !localSearchTerm || 
+    const matchesSearch = !localSearchTerm ||
       finding.title.toLowerCase().includes(localSearchTerm.toLowerCase()) ||
       finding.description?.toLowerCase().includes(localSearchTerm.toLowerCase());
-    
-    const matchesSeverity = localSeverityFilter.length === 0 || 
+
+    const matchesSeverity = localSeverityFilter.length === 0 ||
       localSeverityFilter.includes(finding.severity);
-    
-    const matchesWorkflow = localWorkflowFilter.length === 0 || 
+
+    const matchesWorkflow = localWorkflowFilter.length === 0 ||
       localWorkflowFilter.includes(finding.workflow_state);
-    
-    const matchesCompliance = localComplianceFilter.length === 0 || 
+
+    const matchesCompliance = localComplianceFilter.length === 0 ||
       localComplianceFilter.includes(finding.compliance_status);
 
     return matchesSearch && matchesSeverity && matchesWorkflow && matchesCompliance;
@@ -120,14 +120,14 @@ function AccountFindingsTable({ accountFindings, findingsColumns }: {
           </Col>
         </Row>
       </Card>
-      
+
       <Card title={`Security Findings (${localFilteredFindings.length})`} style={{ marginTop: 16 }}>
         <Table
           dataSource={localFilteredFindings}
           columns={findingsColumns}
-          pagination={{ 
-            pageSize: localPageSize, 
-            showSizeChanger: true, 
+          pagination={{
+            pageSize: localPageSize,
+            showSizeChanger: true,
             showQuickJumper: true,
             pageSizeOptions: ['10', '20', '50', '100'],
             showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} findings`,
@@ -213,7 +213,7 @@ export default function SecurityDashboard() {
   // Chart colors for severities (matching Python script)
   const severityColors = {
     CRITICAL: '#DC3545',
-    HIGH: '#FD7E14', 
+    HIGH: '#FD7E14',
     MEDIUM: '#FFC107',
     LOW: '#20C997',
   };
@@ -263,7 +263,7 @@ export default function SecurityDashboard() {
     queryKey: ['security-data', selectedProfiles, selectedRegions, severityFilter, workflowFilter, complianceFilter],
     queryFn: async () => {
       if (selectedProfiles.length === 0 || selectedRegions.length === 0) return null;
-      
+
       const params = new URLSearchParams({
         profiles: selectedProfiles.join(','),
         regions: selectedRegions.join(','),
@@ -296,7 +296,7 @@ export default function SecurityDashboard() {
   const filteredFindings = securityData?.findings.filter(finding => {
     if (searchTerm) {
       return finding.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-             finding.description?.toLowerCase().includes(searchTerm.toLowerCase());
+        finding.description?.toLowerCase().includes(searchTerm.toLowerCase());
     }
     return true;
   }) || [];
@@ -391,20 +391,20 @@ export default function SecurityDashboard() {
   // Generate charts for individual profile
   const generateProfileCharts = (profile: string, data: SecurityTableRow[], regions: string[]) => {
     if (!data || data.length === 0) return null;
-    
+
     const nonTotalData = data.filter(row => row.region !== 'Total');
     const severities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
-    
+
     // Stacked bar chart data
     const barData = {
       labels: regions.filter(region => nonTotalData.some(row => row.region === region)),
       datasets: severities.map(severity => ({
         label: severity,
         data: regions.filter(region => nonTotalData.some(row => row.region === region))
-                     .map(region => {
-                       const row = nonTotalData.find(r => r.region === region);
-                       return row ? (Number(row[severity as keyof SecurityTableRow]) || 0) : 0;
-                     }),
+          .map(region => {
+            const row = nonTotalData.find(r => r.region === region);
+            return row ? (Number(row[severity as keyof SecurityTableRow]) || 0) : 0;
+          }),
         backgroundColor: severityColors[severity as keyof typeof severityColors],
         borderColor: severityColors[severity as keyof typeof severityColors],
         borderWidth: 1,
@@ -415,7 +415,7 @@ export default function SecurityDashboard() {
     const pieLabels: string[] = [];
     const pieData: number[] = [];
     const pieColors: string[] = [];
-    
+
     severities.forEach(severity => {
       const total = nonTotalData.reduce((sum, row) => sum + (Number(row[severity as keyof SecurityTableRow]) || 0), 0);
       if (total > 0) {
@@ -435,7 +435,7 @@ export default function SecurityDashboard() {
         tooltip: {
           callbacks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            label: function(context: any) {
+            label: function (context: any) {
               return `${context.dataset.label}: ${context.raw}`;
             },
           },
@@ -449,7 +449,7 @@ export default function SecurityDashboard() {
           stacked: true,
           ticks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            callback: function(value: any) {
+            callback: function (value: any) {
               return value;
             },
           },
@@ -467,7 +467,7 @@ export default function SecurityDashboard() {
         tooltip: {
           callbacks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            label: function(context: any) {
+            label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
               return `${context.label}: ${context.raw} (${percentage}%)`;
@@ -500,11 +500,11 @@ export default function SecurityDashboard() {
   // Generate charts for global summary
   const generateGlobalCharts = (data: SecurityTableRow[]) => {
     if (!data || data.length === 0) return null;
-    
+
     const nonTotalData = data.filter(row => row.account !== 'Total');
     const severities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
     const profiles = nonTotalData.map(row => row.account);
-    
+
     // Stacked bar chart data
     const barData = {
       labels: severities,
@@ -524,7 +524,7 @@ export default function SecurityDashboard() {
     const pieLabels: string[] = [];
     const pieData: number[] = [];
     const pieColors: string[] = [];
-    
+
     nonTotalData.forEach((row, index) => {
       if (row.total > 0) {
         pieLabels.push(row.account || 'Unknown');
@@ -543,7 +543,7 @@ export default function SecurityDashboard() {
         tooltip: {
           callbacks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            label: function(context: any) {
+            label: function (context: any) {
               return `${context.dataset.label}: ${context.raw}`;
             },
           },
@@ -557,7 +557,7 @@ export default function SecurityDashboard() {
           stacked: true,
           ticks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            callback: function(value: any) {
+            callback: function (value: any) {
               return value;
             },
           },
@@ -575,7 +575,7 @@ export default function SecurityDashboard() {
         tooltip: {
           callbacks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            label: function(context: any) {
+            label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
               return `${context.label}: ${context.raw} (${percentage}%)`;
@@ -624,8 +624,8 @@ export default function SecurityDashboard() {
         <Title level={2} style={{ margin: 0 }}>Security Hub Dashboard</Title>
         {securityConfig && (
           <Space>
-            <Button 
-              type="dashed" 
+            <Button
+              type="dashed"
               onClick={loadFromConfig}
               size="small"
             >
@@ -634,7 +634,7 @@ export default function SecurityDashboard() {
           </Space>
         )}
       </div>
-      
+
       <Card style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]} align="middle">
           <Col xs={24} sm={8}>
@@ -662,8 +662,8 @@ export default function SecurityDashboard() {
           </Col>
           <Col xs={24} sm={8}>
             <Space style={{ marginTop: 20 }}>
-              <Button 
-                type="primary" 
+              <Button
+                type="primary"
                 icon={<ReloadOutlined />}
                 loading={securityLoading}
                 onClick={() => refetch()}
@@ -768,83 +768,83 @@ export default function SecurityDashboard() {
         const profiles = [...new Set(filteredFindings.map(f => f.profile_name).filter((p): p is string => Boolean(p)))].sort();
         const regions = [...new Set(filteredFindings.map(f => f.region))].sort();
         const severities = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
-        
+
         // Create profile summary data (like Python script's account tables)
         const profileSummaryData: Record<string, SecurityTableRow[]> = {};
         profiles.forEach(profile => {
           const profileFindings = filteredFindings.filter(f => f.profile_name === profile);
           const rows: SecurityTableRow[] = [];
-          
+
           regions.forEach(region => {
             const regionFindings = profileFindings.filter(f => f.region === region);
             if (regionFindings.length > 0) {
               const row: SecurityTableRow = { region, critical: 0, high: 0, medium: 0, low: 0, total: 0 };
               let totalCount = 0;
-              
+
               severities.forEach(severity => {
                 const count = regionFindings.filter(f => f.severity === severity).length;
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (row as any)[severity] = count;
                 totalCount += count;
               });
-              
+
               row.total = totalCount;
               rows.push(row);
             }
           });
-          
+
           // Add total row for this profile
           if (rows.length > 0) {
             const totalRow: SecurityTableRow = { region: 'Total', critical: 0, high: 0, medium: 0, low: 0, total: 0 };
             let grandTotal = 0;
-            
+
             severities.forEach(severity => {
               const severityTotal = rows.reduce((sum, row) => sum + (Number(row[severity as keyof SecurityTableRow]) || 0), 0);
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               (totalRow as any)[severity] = severityTotal;
               grandTotal += severityTotal;
             });
-            
+
             totalRow.total = grandTotal;
             rows.push(totalRow);
             profileSummaryData[profile] = rows;
           }
         });
-        
+
         // Create global summary data
         const globalSummaryData: SecurityTableRow[] = [];
         profiles.forEach(profile => {
           const profileFindings = filteredFindings.filter(f => f.profile_name === profile);
           const row: SecurityTableRow = { account: profile, critical: 0, high: 0, medium: 0, low: 0, total: 0 };
           let totalCount = 0;
-          
+
           severities.forEach(severity => {
             const count = profileFindings.filter(f => f.severity === severity).length;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (row as any)[severity] = count;
             totalCount += count;
           });
-          
+
           row.total = totalCount;
           if (totalCount > 0) globalSummaryData.push(row);
         });
-        
+
         // Add global total row
         if (globalSummaryData.length > 0) {
           const globalTotalRow: SecurityTableRow = { account: 'Total', critical: 0, high: 0, medium: 0, low: 0, total: 0 };
           let grandTotal = 0;
-          
+
           severities.forEach(severity => {
             const severityTotal = globalSummaryData.reduce((sum, row) => sum + (Number(row[severity as keyof SecurityTableRow]) || 0), 0);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (globalTotalRow as any)[severity] = severityTotal;
             grandTotal += severityTotal;
           });
-          
+
           globalTotalRow.total = grandTotal;
           globalSummaryData.push(globalTotalRow);
         }
-        
+
         // Generate columns for summary tables
         const generateSummaryColumns = (firstColumnTitle: string) => {
           const columns: ColumnsType<SecurityTableRow> = [
@@ -861,7 +861,7 @@ export default function SecurityDashboard() {
               },
             }
           ];
-          
+
           severities.forEach(severity => {
             columns.push({
               title: severity,
@@ -872,7 +872,7 @@ export default function SecurityDashboard() {
               sorter: (a, b) => (Number(a[severity as keyof SecurityTableRow]) || 0) - (Number(b[severity as keyof SecurityTableRow]) || 0),
             });
           });
-          
+
           columns.push({
             title: 'Total',
             dataIndex: 'total',
@@ -884,10 +884,10 @@ export default function SecurityDashboard() {
             sorter: (a, b) => a.total - b.total,
             defaultSortOrder: 'descend',
           });
-          
+
           return columns;
         };
-        
+
         // Create tab items matching Python script structure
         const tabItems = [
           // Global Summary tab (first)
@@ -901,9 +901,9 @@ export default function SecurityDashboard() {
                   <Table
                     dataSource={globalSummaryData.filter(row => row.account !== 'Total')}
                     columns={generateSummaryColumns('Account')}
-                    pagination={{ 
-                      pageSize: globalSummaryPageSize, 
-                      showSizeChanger: true, 
+                    pagination={{
+                      pageSize: globalSummaryPageSize,
+                      showSizeChanger: true,
                       showQuickJumper: true,
                       pageSizeOptions: ['10', '20', '50', '100'],
                       showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} accounts`,
@@ -947,9 +947,9 @@ export default function SecurityDashboard() {
                     <Table
                       dataSource={(profileSummaryData[profile] || []).filter(row => row.region !== 'Total')}
                       columns={generateSummaryColumns('Region')}
-                      pagination={{ 
-                        pageSize: getProfilePageSize(profile), 
-                        showSizeChanger: true, 
+                      pagination={{
+                        pageSize: getProfilePageSize(profile),
+                        showSizeChanger: true,
                         showQuickJumper: true,
                         pageSizeOptions: ['10', '20', '50', '100'],
                         showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} regions`,
@@ -977,7 +977,7 @@ export default function SecurityDashboard() {
                       }}
                     />
                   </Card>
-                  <AccountFindingsTable 
+                  <AccountFindingsTable
                     accountFindings={profileFindings}
                     findingsColumns={findingsColumns}
                   />
@@ -986,7 +986,7 @@ export default function SecurityDashboard() {
             };
           }),
         ];
-        
+
         return (
           <Tabs
             defaultActiveKey="global-summary"

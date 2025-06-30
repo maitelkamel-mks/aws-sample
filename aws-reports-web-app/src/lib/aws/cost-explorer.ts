@@ -15,7 +15,7 @@ export class CostExplorerService {
     profile: string,
     startDate: string,
     endDate: string,
-    granularity: 'DAILY' | 'MONTHLY' = 'MONTHLY',
+    granularity: 'HOURLY' | 'DAILY' | 'MONTHLY' = 'MONTHLY',
     services?: string[],
     excludeTaxes: boolean = false,
     excludeSupport: boolean = false
@@ -187,7 +187,7 @@ export class CostExplorerService {
     profiles: string[],
     startDate: string,
     endDate: string,
-    granularity: 'DAILY' | 'MONTHLY' = 'MONTHLY',
+    granularity: 'HOURLY' | 'DAILY' | 'MONTHLY' = 'MONTHLY',
     services?: string[],
     excludeTaxes: boolean = false,
     excludeSupport: boolean = false

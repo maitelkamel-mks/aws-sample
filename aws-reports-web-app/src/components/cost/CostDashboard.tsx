@@ -58,7 +58,7 @@ export default function CostDashboard() {
     dayjs().subtract(1, 'month'),
     dayjs()
   ]);
-  const [granularity, setGranularity] = useState<'DAILY' | 'MONTHLY'>('MONTHLY');
+  const [granularity, setGranularity] = useState<'HOURLY' | 'DAILY' | 'MONTHLY' | 'ANNUAL'>('MONTHLY');
   const [useConfigDefaults, setUseConfigDefaults] = useState(true);
   const [includeTaxes, setIncludeTaxes] = useState(true);
   const [includeSupport, setIncludeSupport] = useState(true);
@@ -116,19 +116,70 @@ export default function CostDashboard() {
     queryFn: async () => {
       if (selectedProfiles.length === 0) return null;
       
+      // For annual granularity, fetch monthly data and aggregate
+      const apiGranularity = granularity === 'ANNUAL' ? 'MONTHLY' : granularity;
+      
+      // Format dates based on granularity - hourly requires specific format
+      const startDate = granularity === 'HOURLY' 
+        ? dateRange[0].startOf('day').format('YYYY-MM-DD[T]00:00:00[Z]')
+        : dateRange[0].format('YYYY-MM-DD');
+      const endDate = granularity === 'HOURLY' 
+        ? dateRange[1].endOf('day').format('YYYY-MM-DD[T]23:59:59[Z]')
+        : dateRange[1].format('YYYY-MM-DD');
+      
       const params = new URLSearchParams({
         profiles: selectedProfiles.join(','),
-        startDate: dateRange[0].format('YYYY-MM-DD'),
-        endDate: dateRange[1].format('YYYY-MM-DD'),
-        granularity,
+        startDate,
+        endDate,
+        granularity: apiGranularity,
         excludeTaxes: (!includeTaxes).toString(),
         excludeSupport: (!includeSupport).toString(),
       });
 
       const response = await fetch(`/api/cost/data?${params}`);
-      if (!response.ok) throw new Error('Failed to fetch cost data');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch cost data');
+      }
       const result = await response.json();
-      return result.data as CostResponse;
+      const data = result.data as CostResponse;
+      
+      // If annual granularity, aggregate monthly data into years
+      if (granularity === 'ANNUAL' && data) {
+        const aggregatedData: CostData[] = [];
+        const yearMap: Record<string, Record<string, Record<string, number>>> = {};
+        
+        // Group by year, profile, and service
+        data.data.forEach(item => {
+          const year = dayjs(item.period).year().toString();
+          if (!yearMap[year]) yearMap[year] = {};
+          if (!yearMap[year][item.profile]) yearMap[year][item.profile] = {};
+          if (!yearMap[year][item.profile][item.service]) yearMap[year][item.profile][item.service] = 0;
+          yearMap[year][item.profile][item.service] += item.amount;
+        });
+        
+        // Convert to array format
+        Object.entries(yearMap).forEach(([year, profiles]) => {
+          Object.entries(profiles).forEach(([profile, services]) => {
+            Object.entries(services).forEach(([service, amount]) => {
+              aggregatedData.push({
+                period: year,
+                profile,
+                service,
+                amount,
+                currency: 'USD' // Assuming USD, can be extracted from original data if needed
+              });
+            });
+          });
+        });
+        
+        return {
+          data: aggregatedData,
+          summaries: data.summaries
+        };
+      }
+      
+      return data;
     },
     enabled: false,
   });
@@ -568,8 +619,10 @@ export default function CostDashboard() {
               value={granularity}
               onChange={setGranularity}
               options={[
-                { label: 'Monthly', value: 'MONTHLY' },
+                { label: 'Hourly', value: 'HOURLY' },
                 { label: 'Daily', value: 'DAILY' },
+                { label: 'Monthly', value: 'MONTHLY' },
+                { label: 'Annual', value: 'ANNUAL' },
               ]}
             />
           </Col>
