@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, Select, Button, Table, Typography, Space, Tag, Statistic, Input, Spin, App, Alert, Tabs } from 'antd';
-import { ReloadOutlined, SearchOutlined, ExclamationCircleOutlined, WarningOutlined, InfoCircleOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Select, Button, Table, Typography, Space, Tag, Statistic, Input, Spin, App, Alert, Tabs, Dropdown, MenuProps } from 'antd';
+import { ReloadOutlined, SearchOutlined, ExclamationCircleOutlined, WarningOutlined, InfoCircleOutlined, CheckCircleOutlined, DownloadOutlined, FilePdfOutlined, FileExcelOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import type { ColumnsType } from 'antd/es/table';
 import { SecurityFinding, SecuritySummary, SecurityOverview, SecurityConfig } from '@/lib/types/security';
@@ -203,12 +203,87 @@ export default function SecurityDashboard() {
   const [useConfigDefaults, setUseConfigDefaults] = useState(true);
   const [globalSummaryPageSize, setGlobalSummaryPageSize] = useState(20);
   const [profileSummaryPageSizes, setProfileSummaryPageSizes] = useState<Record<string, number>>({});
+  const [exportLoading, setExportLoading] = useState<string | null>(null);
 
   // Helper functions for profile page sizes
   const getProfilePageSize = (profile: string) => profileSummaryPageSizes[profile] || 20;
   const setProfilePageSize = (profile: string, size: number) => {
     setProfileSummaryPageSizes(prev => ({ ...prev, [profile]: size }));
   };
+
+  const handleExport = async (format: 'pdf' | 'xlsx' | 'html') => {
+    if (!securityData || selectedProfiles.length === 0) {
+      message.error('Please generate a report first');
+      return;
+    }
+
+    setExportLoading(format);
+    try {
+      const params = new URLSearchParams({
+        profiles: selectedProfiles.join(','),
+        regions: selectedRegions.join(','),
+        format,
+      });
+
+      if (severityFilter.length > 0) {
+        params.append('severities', severityFilter.join(','));
+      }
+      if (workflowFilter.length > 0) {
+        params.append('workflowState', workflowFilter.join(','));
+      }
+      if (complianceFilter.length > 0) {
+        params.append('complianceStatus', complianceFilter.join(','));
+      }
+
+      const response = await fetch(`/api/security/export?${params}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Export failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      const timestamp = new Date().toISOString().split('T')[0];
+      const extension = format === 'xlsx' ? 'xlsx' : format === 'pdf' ? 'pdf' : 'html';
+      link.download = `security-report-${timestamp}.${extension}`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      message.success(`Security report exported as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error('Export error:', error);
+      message.error(error instanceof Error ? error.message : 'Export failed');
+    } finally {
+      setExportLoading(null);
+    }
+  };
+
+  const exportMenuItems: MenuProps['items'] = [
+    {
+      key: 'excel',
+      label: 'Export Excel',
+      icon: <FileExcelOutlined />,
+      onClick: () => handleExport('xlsx'),
+    },
+    {
+      key: 'pdf',
+      label: 'Export PDF',
+      icon: <FilePdfOutlined />,
+      onClick: () => handleExport('pdf'),
+    },
+    {
+      key: 'html',
+      label: 'Export HTML',
+      icon: <FileTextOutlined />,
+      onClick: () => handleExport('html'),
+    },
+  ];
 
   // Chart colors for severities (matching Python script)
   const severityColors = {
@@ -671,6 +746,21 @@ export default function SecurityDashboard() {
               >
                 Refresh Findings
               </Button>
+              {securityData && (
+                <Dropdown
+                  menu={{ items: exportMenuItems }}
+                  placement="bottomLeft"
+                  disabled={!securityData || selectedProfiles.length === 0}
+                >
+                  <Button
+                    icon={exportLoading ? <Spin size="small" /> : <DownloadOutlined />}
+                    loading={exportLoading !== null}
+                    disabled={!securityData || selectedProfiles.length === 0}
+                  >
+                    Export {exportLoading && `(${exportLoading.toUpperCase()})`}
+                  </Button>
+                </Dropdown>
+              )}
             </Space>
           </Col>
         </Row>

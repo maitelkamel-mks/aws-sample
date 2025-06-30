@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, DatePicker, Select, Button, Table, Typography, Space, Spin, App, Tabs, Switch } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { Card, Row, Col, DatePicker, Select, Button, Table, Typography, Space, Spin, App, Tabs, Switch, Dropdown, MenuProps } from 'antd';
+import { ReloadOutlined, DownloadOutlined, FileExcelOutlined, FilePdfOutlined, GlobalOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
@@ -62,6 +62,7 @@ export default function CostDashboard() {
   const [useConfigDefaults, setUseConfigDefaults] = useState(true);
   const [includeTaxes, setIncludeTaxes] = useState(true);
   const [includeSupport, setIncludeSupport] = useState(true);
+  const [exportLoading, setExportLoading] = useState<string | null>(null);
 
   // Chart colors
   const chartColors = [
@@ -573,6 +574,88 @@ export default function CostDashboard() {
     }
   };
 
+  const handleExport = async (format: 'pdf' | 'xlsx' | 'html') => {
+    if (!costData || selectedProfiles.length === 0) {
+      message.error('Please generate a report first');
+      return;
+    }
+
+    setExportLoading(format);
+    
+    try {
+      // For annual granularity, use the same date formatting as the main query
+      const apiGranularity = granularity === 'ANNUAL' ? 'MONTHLY' : granularity;
+      const startDate = granularity === 'HOURLY' 
+        ? dateRange[0].startOf('day').format('YYYY-MM-DD[T]00:00:00[Z]')
+        : dateRange[0].format('YYYY-MM-DD');
+      const endDate = granularity === 'HOURLY' 
+        ? dateRange[1].endOf('day').format('YYYY-MM-DD[T]23:59:59[Z]')
+        : dateRange[1].format('YYYY-MM-DD');
+
+      const params = new URLSearchParams({
+        profiles: selectedProfiles.join(','),
+        startDate,
+        endDate,
+        granularity: apiGranularity,
+        excludeTaxes: (!includeTaxes).toString(),
+        excludeSupport: (!includeSupport).toString(),
+        format,
+      });
+
+      const response = await fetch(`/api/cost/export?${params}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Export failed');
+      }
+
+      // Get filename from response headers
+      const contentDisposition = response.headers.get('content-disposition');
+      const filename = contentDisposition?.match(/filename="(.+)"/)?.[1] || `cost-report-${startDate}-${endDate}.${format}`;
+
+      // Download the file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      message.success(`Report exported as ${format.toUpperCase()}`);
+    } catch (error) {
+      console.error('Export error:', error);
+      message.error(`Failed to export report: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setExportLoading(null);
+    }
+  };
+
+  const exportMenuItems: MenuProps['items'] = [
+    {
+      key: 'xlsx',
+      icon: exportLoading === 'xlsx' ? <Spin size="small" /> : <FileExcelOutlined />,
+      label: exportLoading === 'xlsx' ? 'Generating Excel...' : 'Export as Excel',
+      onClick: () => handleExport('xlsx'),
+      disabled: exportLoading !== null,
+    },
+    {
+      key: 'pdf',
+      icon: exportLoading === 'pdf' ? <Spin size="small" /> : <FilePdfOutlined />,
+      label: exportLoading === 'pdf' ? 'Generating PDF...' : 'Export as PDF',
+      onClick: () => handleExport('pdf'),
+      disabled: exportLoading !== null,
+    },
+    {
+      key: 'html',
+      icon: exportLoading === 'html' ? <Spin size="small" /> : <GlobalOutlined />,
+      label: exportLoading === 'html' ? 'Generating HTML...' : 'Export as HTML',
+      onClick: () => handleExport('html'),
+      disabled: exportLoading !== null,
+    },
+  ];
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -637,6 +720,21 @@ export default function CostDashboard() {
               >
                 Generate Report
               </Button>
+              {costData && (
+                <Dropdown 
+                  menu={{ items: exportMenuItems }} 
+                  placement="bottomRight"
+                  disabled={exportLoading !== null}
+                >
+                  <Button 
+                    icon={exportLoading ? <Spin size="small" /> : <DownloadOutlined />}
+                    loading={exportLoading !== null}
+                    disabled={exportLoading !== null}
+                  >
+                    {exportLoading ? `Exporting ${exportLoading.toUpperCase()}...` : 'Export'}
+                  </Button>
+                </Dropdown>
+              )}
             </Space>
           </Col>
         </Row>

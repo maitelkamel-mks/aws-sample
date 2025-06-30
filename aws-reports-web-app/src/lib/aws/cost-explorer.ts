@@ -149,7 +149,7 @@ export class CostExplorerService {
     profile: string,
     startDate: string,
     endDate: string,
-    granularity: 'DAILY' | 'MONTHLY' = 'MONTHLY'
+    granularity: 'HOURLY' | 'DAILY' | 'MONTHLY' = 'MONTHLY'
   ): Promise<CostSummary> {
     try {
       const costData = await this.getCostData(profile, startDate, endDate, granularity);
