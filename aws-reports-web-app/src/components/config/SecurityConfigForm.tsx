@@ -4,6 +4,7 @@ import { Form, Select, Button, Spin, App, Typography } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SecurityConfig } from '@/lib/types/security';
+import { electronAPI } from '@/lib/electron/api';
 
 export default function SecurityConfigForm() {
   const [form] = Form.useForm();
@@ -13,37 +14,27 @@ export default function SecurityConfigForm() {
   const { data: config, isLoading } = useQuery({
     queryKey: ['security-config'],
     queryFn: async () => {
-      const response = await fetch('/api/config/security');
-      if (!response.ok) {
-        if (response.status === 404) {
-          return null; // Config doesn't exist yet
-        }
-        throw new Error('Failed to load security configuration');
+      try {
+        const data = await electronAPI.readConfig('security');
+        return data ? (data as unknown as SecurityConfig) : null;
+      } catch (error) {
+        // If running in browser mode, it will automatically fallback
+        throw error;
       }
-      const result = await response.json();
-      return result.data as SecurityConfig;
     },
   });
 
   const { data: profiles } = useQuery({
     queryKey: ['aws-profiles'],
     queryFn: async () => {
-      const response = await fetch('/api/aws/profiles');
-      if (!response.ok) throw new Error('Failed to fetch profiles');
-      const result = await response.json();
-      return result.data as string[];
+      return await electronAPI.getAWSProfiles();
     },
   });
 
   const saveMutation = useMutation({
     mutationFn: async (values: SecurityConfig) => {
-      const response = await fetch('/api/config/security', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-      });
-      if (!response.ok) throw new Error('Failed to save configuration');
-      return response.json();
+      await electronAPI.writeConfig('security', values as unknown as Record<string, unknown>);
+      return { success: true };
     },
     onSuccess: () => {
       message.success('Security configuration saved successfully');

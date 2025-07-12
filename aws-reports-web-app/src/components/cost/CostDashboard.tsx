@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import { CostData, CostSummary, CostConfig } from '@/lib/types/cost';
 import AWSErrorAlert from '@/components/common/AWSErrorAlert';
+import { electronAPI } from '@/lib/electron/api';
 import { Bar, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -614,16 +615,15 @@ export default function CostDashboard() {
 
       // Download the file
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      message.success(`Report exported as ${format.toUpperCase()}`);
+      const content = await blob.text();
+      const contentType = response.headers.get('content-type') || 'application/octet-stream';
+      
+      const success = await electronAPI.saveFile(content, filename, contentType);
+      if (success) {
+        message.success(`Report exported as ${format.toUpperCase()}`);
+      } else {
+        message.info('Export cancelled');
+      }
     } catch (error) {
       console.error('Export error:', error);
       message.error(`Failed to export report: ${error instanceof Error ? error.message : 'Unknown error'}`);

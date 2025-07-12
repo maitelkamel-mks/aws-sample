@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { ColumnsType } from 'antd/es/table';
 import { SecurityFinding, SecuritySummary, SecurityOverview, SecurityConfig } from '@/lib/types/security';
 import AWSErrorAlert from '@/components/common/AWSErrorAlert';
+import { electronAPI } from '@/lib/electron/api';
 import { Bar, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -242,20 +243,19 @@ export default function SecurityDashboard() {
       }
 
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
+      const content = await blob.text();
+      const contentType = response.headers.get('content-type') || 'application/octet-stream';
       
       const timestamp = new Date().toISOString().split('T')[0];
       const extension = format === 'xlsx' ? 'xlsx' : format === 'pdf' ? 'pdf' : 'html';
-      link.download = `security-report-${timestamp}.${extension}`;
+      const filename = `security-report-${timestamp}.${extension}`;
       
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-      
-      message.success(`Security report exported as ${format.toUpperCase()}`);
+      const success = await electronAPI.saveFile(content, filename, contentType);
+      if (success) {
+        message.success(`Security report exported as ${format.toUpperCase()}`);
+      } else {
+        message.info('Export cancelled');
+      }
     } catch (error) {
       console.error('Export error:', error);
       message.error(error instanceof Error ? error.message : 'Export failed');

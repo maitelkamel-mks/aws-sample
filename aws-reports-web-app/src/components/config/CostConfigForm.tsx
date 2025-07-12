@@ -5,6 +5,7 @@ import { SaveOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CostConfig } from '@/lib/types/cost';
 import dayjs from 'dayjs';
+import { electronAPI } from '@/lib/electron/api';
 
 export default function CostConfigForm() {
   const [form] = Form.useForm();
@@ -14,37 +15,27 @@ export default function CostConfigForm() {
   const { data: config, isLoading } = useQuery({
     queryKey: ['cost-config'],
     queryFn: async () => {
-      const response = await fetch('/api/config/cost');
-      if (!response.ok) {
-        if (response.status === 404) {
-          return null; // Config doesn't exist yet
-        }
-        throw new Error('Failed to load cost configuration');
+      try {
+        const data = await electronAPI.readConfig('cost');
+        return data ? (data as unknown as CostConfig) : null;
+      } catch (error) {
+        // If running in browser mode, it will automatically fallback
+        throw error;
       }
-      const result = await response.json();
-      return result.data as CostConfig;
     },
   });
 
   const { data: profiles } = useQuery({
     queryKey: ['aws-profiles'],
     queryFn: async () => {
-      const response = await fetch('/api/aws/profiles');
-      if (!response.ok) throw new Error('Failed to fetch profiles');
-      const result = await response.json();
-      return result.data as string[];
+      return await electronAPI.getAWSProfiles();
     },
   });
 
   const saveMutation = useMutation({
     mutationFn: async (values: CostConfig) => {
-      const response = await fetch('/api/config/cost', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values),
-      });
-      if (!response.ok) throw new Error('Failed to save configuration');
-      return response.json();
+      await electronAPI.writeConfig('cost', values as unknown as Record<string, unknown>);
+      return { success: true };
     },
     onSuccess: () => {
       message.success('Cost configuration saved successfully');
