@@ -142,3 +142,11 @@ scripts/
 #### Development vs Production
 - **Development**: Electron launches Next.js dev server automatically
 - **Production**: Electron starts Next.js programmatically using the Next.js API
+
+## Git Commit Guidelines
+
+### Commit Messages
+- Do NOT include Claude Code attribution in commit messages
+- Do NOT add "🤖 Generated with [Claude Code]" or "Co-Authored-By: Claude" lines
+- Write commit messages as if they were created by the human developer
+- Focus on the technical changes and their business value
