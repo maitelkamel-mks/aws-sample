@@ -5,10 +5,12 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
 ## Features
 
 - **Cost Reporting**: Interactive AWS cost analysis with Cost Explorer API integration
+  - Service filtering with "Other" category aggregation (like finops-cost-report Python script)
   - Sortable tables with customizable pagination (10, 20, 50, 100 items per page)
   - Fixed total rows in table footers for easy reference
   - Visual charts and graphs for cost analysis
   - Multiple view modes: Account totals, Service totals, Individual account breakdown
+  - Granularity options: Hourly, Daily, Monthly, Annual
 - **Security Dashboard**: Security Hub findings aggregation and analysis
   - Advanced table sorting with multiple severity levels
   - Profile-specific findings tracking with accurate mapping
@@ -17,7 +19,8 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
 - **Multi-Account Support**: Manage multiple AWS profiles and accounts
 - **HTTP Proxy Support**: Automatic proxy configuration when HTTP_PROXY environment variables are set
 - **Real-time Filtering**: Interactive filtering and search capabilities
-- **Data Export**: Export reports in CSV and JSON formats
+- **Data Export**: Export reports in HTML, PDF, and Excel formats
+- **Cross-Platform Desktop App**: Electron-based desktop application for macOS, Windows, and Linux
 - **Responsive Design**: Mobile-friendly interface using Ant Design
 - **Configuration Management**: Web-based configuration for AWS profiles and settings
 - **Error Handling**: User-friendly error messages with troubleshooting guidance
@@ -33,6 +36,8 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
 - Optional: HTTP proxy configuration if required by your network environment
 
 ## Installation
+
+### Web Application
 
 1. **Install dependencies:**
    ```bash
@@ -50,6 +55,22 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
    npm run dev          # Uses Turbopack (faster)
    # OR
    npm run dev:webpack  # Uses traditional Webpack
+   ```
+
+### Desktop Application
+
+1. **Run desktop app in development:**
+   ```bash
+   npm run electron:dev
+   ```
+
+2. **Build desktop app for production:**
+   ```bash
+   npm run electron:build        # Current platform
+   npm run electron:build:mac    # macOS ARM64
+   npm run electron:build:win    # Windows x64
+   npm run electron:build:linux  # Linux x64
+   npm run electron:build:all    # All platforms
    ```
 
 4. **Configure HTTP Proxy (Optional):**
@@ -74,7 +95,8 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
 
 2. **Configure Cost Reporting:**
    - Go to Configuration → Cost Configuration tab
-   - Set up report preferences, profiles, and date ranges
+   - Set up report preferences, profiles, service filters, and date ranges
+   - Select specific AWS services or leave empty to show all services
    - Configuration will be saved to `finops-cost-report/config.yaml`
 
 3. **Configure Security Hub:**
@@ -86,15 +108,19 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
 
 #### Cost Reports
 1. Navigate to "Cost Reports" page
-2. Select AWS profiles and date range
-3. Choose granularity (Daily/Monthly)
-4. Click "Generate Report"
-5. **Enhanced Table Features:**
+2. Select AWS profiles, date range, and services (optional)
+3. Choose granularity (Hourly/Daily/Monthly/Annual)
+4. **Service Filtering:**
+   - Leave services empty to show all AWS services
+   - Select specific services to show only those + "Other" category
+   - "Other" aggregates costs from all unselected services
+5. Click "Generate Report"
+6. **Enhanced Table Features:**
    - Sort by service name, account name, or total cost (descending by default)
    - Customize page size and navigate through large datasets
    - View multiple perspectives: Account totals, Service totals, Individual account breakdown
    - Fixed total rows show aggregate costs at the bottom of each table
-6. Export data as CSV or JSON if needed
+7. Export data as HTML, PDF, or Excel formats
 
 #### Security Dashboard
 1. Navigate to "Security Hub" page
@@ -199,7 +225,16 @@ The application can be deployed as:
    npm start
    ```
 
-2. **Docker Container:**
+2. **Cross-Platform Desktop Application:**
+   ```bash
+   npm run electron:build:all
+   ```
+   Generates installers for:
+   - **macOS**: DMG installer and ZIP archive (ARM64)
+   - **Windows**: NSIS installer, portable EXE, and ZIP archive (x64)
+   - **Linux**: AppImage, DEB, RPM, and TAR.GZ packages (x64)
+
+3. **Docker Container:**
    ```bash
    docker build -t aws-reports-app .
    docker run -p 3000:3000 aws-reports-app
