@@ -56,8 +56,12 @@ export const electronAPI = {
     }
     // Fallback to HTTP API
     const response = await fetch(`/api/config/${type}`);
-    if (!response.ok) throw new Error('Failed to read config');
-    return response.json();
+    if (!response.ok) {
+      if (response.status === 404) return null;
+      throw new Error('Failed to read config');
+    }
+    const result = await response.json();
+    return result.data;
   },
 
   writeConfig: async (type: 'cost' | 'security', config: ConfigData): Promise<void> => {
@@ -67,7 +71,7 @@ export const electronAPI = {
     }
     // Fallback to HTTP API
     const response = await fetch(`/api/config/${type}`, {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config),
     });

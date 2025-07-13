@@ -191,8 +191,8 @@ ipcMain.handle('aws:getProfiles', async () => {
 ipcMain.handle('config:read', async (event, type) => {
   try {
     const configPath = type === 'cost' 
-      ? path.join(__dirname, '..', 'finops-cost-report', 'config.yaml')
-      : path.join(__dirname, '..', 'securityhub', 'config.yaml');
+      ? path.join(process.cwd(), 'finops-cost-report', 'config.yaml')
+      : path.join(process.cwd(), 'securityhub', 'config.yaml');
     
     const content = await fs.readFile(configPath, 'utf-8');
     return yaml.parse(content);
@@ -207,8 +207,8 @@ ipcMain.handle('config:read', async (event, type) => {
 ipcMain.handle('config:write', async (event, type, config) => {
   try {
     const configPath = type === 'cost' 
-      ? path.join(__dirname, '..', 'finops-cost-report', 'config.yaml')
-      : path.join(__dirname, '..', 'securityhub', 'config.yaml');
+      ? path.join(process.cwd(), 'finops-cost-report', 'config.yaml')
+      : path.join(process.cwd(), 'securityhub', 'config.yaml');
     
     // Ensure directory exists
     const dir = path.dirname(configPath);

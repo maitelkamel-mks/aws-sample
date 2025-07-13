@@ -9,6 +9,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { CostData, CostSummary, CostConfig } from '@/lib/types/cost';
 import AWSErrorAlert from '@/components/common/AWSErrorAlert';
 import { electronAPI } from '@/lib/electron/api';
+import { AWS_SERVICE_OPTIONS } from '@/lib/constants/aws-services';
 import { Bar, Pie } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -63,6 +64,7 @@ export default function CostDashboard() {
   const [useConfigDefaults, setUseConfigDefaults] = useState(true);
   const [includeTaxes, setIncludeTaxes] = useState(true);
   const [includeSupport, setIncludeSupport] = useState(true);
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [exportLoading, setExportLoading] = useState<string | null>(null);
 
   // Chart colors
@@ -102,6 +104,7 @@ export default function CostDashboard() {
   useEffect(() => {
     if (costConfig && useConfigDefaults) {
       setSelectedProfiles(costConfig.profiles || []);
+      setSelectedServices(costConfig.services || []);
       setDateRange([
         dayjs(costConfig.start_date),
         dayjs(costConfig.end_date)
@@ -114,7 +117,7 @@ export default function CostDashboard() {
   }, [costConfig, useConfigDefaults]);
 
   const { data: costData, isLoading: costLoading, error: costError, refetch } = useQuery({
-    queryKey: ['cost-data', selectedProfiles, dateRange, granularity, includeTaxes, includeSupport],
+    queryKey: ['cost-data', selectedProfiles, dateRange, granularity, includeTaxes, includeSupport, selectedServices],
     queryFn: async () => {
       if (selectedProfiles.length === 0) return null;
       
@@ -137,6 +140,11 @@ export default function CostDashboard() {
         excludeTaxes: (!includeTaxes).toString(),
         excludeSupport: (!includeSupport).toString(),
       });
+
+      // Add services parameter if services are selected
+      if (selectedServices.length > 0) {
+        params.set('services', selectedServices.join(','));
+      }
 
       const response = await fetch(`/api/cost/data?${params}`);
       if (!response.ok) {
@@ -562,6 +570,7 @@ export default function CostDashboard() {
   const loadFromConfig = () => {
     if (costConfig) {
       setSelectedProfiles(costConfig.profiles || []);
+      setSelectedServices(costConfig.services || []);
       setDateRange([
         dayjs(costConfig.start_date),
         dayjs(costConfig.end_date)
@@ -602,6 +611,11 @@ export default function CostDashboard() {
         excludeSupport: (!includeSupport).toString(),
         format,
       });
+
+      // Add services parameter if services are selected
+      if (selectedServices.length > 0) {
+        params.set('services', selectedServices.join(','));
+      }
 
       const response = await fetch(`/api/cost/export?${params}`);
       if (!response.ok) {
@@ -675,7 +689,7 @@ export default function CostDashboard() {
       
       <Card style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} sm={8}>
+          <Col xs={24} sm={6}>
             <label>AWS Profiles:</label>
             <Select
               mode="multiple"
@@ -688,6 +702,22 @@ export default function CostDashboard() {
             />
           </Col>
           <Col xs={24} sm={6}>
+            <label>AWS Services:</label>
+            <Select
+              mode="multiple"
+              style={{ width: '100%', marginTop: 4 }}
+              placeholder="All services (leave empty for all)"
+              value={selectedServices}
+              onChange={setSelectedServices}
+              options={AWS_SERVICE_OPTIONS}
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+            />
+          </Col>
+          <Col xs={24} sm={5}>
             <label>Date Range:</label>
             <RangePicker
               style={{ width: '100%', marginTop: 4 }}
@@ -695,7 +725,7 @@ export default function CostDashboard() {
               onChange={(dates) => dates && setDateRange(dates as [dayjs.Dayjs, dayjs.Dayjs])}
             />
           </Col>
-          <Col xs={24} sm={4}>
+          <Col xs={24} sm={3}>
             <label>Granularity:</label>
             <Select
               style={{ width: '100%', marginTop: 4 }}
@@ -709,7 +739,7 @@ export default function CostDashboard() {
               ]}
             />
           </Col>
-          <Col xs={24} sm={6}>
+          <Col xs={24} sm={4}>
             <Space style={{ marginTop: 20 }}>
               <Button 
                 type="primary" 

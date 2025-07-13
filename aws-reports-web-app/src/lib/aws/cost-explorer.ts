@@ -40,18 +40,9 @@ export class CostExplorerService {
         ],
       };
 
-      // Build filters
+      // Build filters - Note: When services are specified, we need to fetch ALL services 
+      // and then filter client-side to implement "Other" category like the Python script
       const filters = [];
-      
-      if (services && services.length > 0) {
-        filters.push({
-          Dimensions: {
-            Key: 'SERVICE',
-            Values: services,
-            MatchOptions: ['EQUALS'],
-          },
-        });
-      }
       
       if (excludeTaxes || excludeSupport) {
         const excludeFilters = [];
@@ -112,6 +103,8 @@ export class CostExplorerService {
       const response = await client.send(command);
 
       const costData: CostData[] = [];
+      const showAllServices = !services || services.length === 0;
+      const otherCosts: Record<string, number> = {}; // Track "Other" costs by period
 
       if (response.ResultsByTime) {
         for (const result of response.ResultsByTime) {
@@ -119,23 +112,63 @@ export class CostExplorerService {
           
           if (result.Groups) {
             for (const group of result.Groups) {
-              const service = group.Keys?.[0] || 'Unknown';
+              const serviceName = group.Keys?.[0] || 'Unknown';
               const amount = parseFloat(group.Metrics?.BlendedCost?.Amount || '0');
               const currency = group.Metrics?.BlendedCost?.Unit || 'USD';
 
+              // Skip if amount is 0
+              if (amount === 0) continue;
+
+              // Apply exclude filters (taxes and support)
+              if (serviceName.startsWith('AWS Support') && excludeSupport) {
+                continue;
+              }
+              if (serviceName === 'Tax' && excludeTaxes) {
+                continue;
+              }
+
+              // Apply service filtering logic like the Python script
+              if (showAllServices || (services && services.includes(serviceName))) {
+                // Include this service directly
+                costData.push({
+                  profile,
+                  service: serviceName,
+                  period,
+                  amount,
+                  currency,
+                  dimensions: {
+                    usage_quantity: group.Metrics?.UsageQuantity?.Amount || '0',
+                    usage_unit: group.Metrics?.UsageQuantity?.Unit || '',
+                  },
+                });
+              } else if (services && services.length > 0) {
+                // Add to "Other" category
+                if (!otherCosts[period]) {
+                  otherCosts[period] = 0;
+                }
+                otherCosts[period] += amount;
+              }
+            }
+          }
+        }
+
+        // Add "Other" category entries for each period that has other costs
+        if (!showAllServices && services && services.length > 0) {
+          Object.entries(otherCosts).forEach(([period, amount]) => {
+            if (amount > 0) {
               costData.push({
                 profile,
-                service,
+                service: 'Other',
                 period,
                 amount,
-                currency,
+                currency: 'USD',
                 dimensions: {
-                  usage_quantity: group.Metrics?.UsageQuantity?.Amount || '0',
-                  usage_unit: group.Metrics?.UsageQuantity?.Unit || '',
+                  usage_quantity: '0',
+                  usage_unit: '',
                 },
               });
             }
-          }
+          });
         }
       }
 

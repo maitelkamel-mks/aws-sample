@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CostConfig } from '@/lib/types/cost';
 import dayjs from 'dayjs';
 import { electronAPI } from '@/lib/electron/api';
+import { AWS_SERVICE_OPTIONS } from '@/lib/constants/aws-services';
 
 export default function CostConfigForm() {
   const [form] = Form.useForm();
@@ -116,8 +117,14 @@ export default function CostConfigForm() {
         name="services"
       >
         <Select
-          mode="tags"
-          placeholder="Enter service names or leave empty for all"
+          mode="multiple"
+          placeholder="All services (leave empty for all)"
+          options={AWS_SERVICE_OPTIONS}
+          allowClear
+          showSearch
+          filterOption={(input, option) =>
+            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          }
         />
       </Form.Item>
 

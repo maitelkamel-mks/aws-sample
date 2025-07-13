@@ -6,7 +6,6 @@ import { CostConfig } from '../types/cost';
 import { SecurityConfig } from '../types/security';
 
 const CostConfigSchema = z.object({
-  report_name: z.string(),
   profiles: z.array(z.string()),
   services: z.array(z.string()),
   start_date: z.string(),
@@ -17,7 +16,6 @@ const CostConfigSchema = z.object({
 });
 
 const SecurityConfigSchema = z.object({
-  report_name: z.string(),
   profiles: z.array(z.string()),
   home_region: z.string(),
 });
