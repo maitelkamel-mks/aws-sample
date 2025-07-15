@@ -4,6 +4,9 @@
 
 # Parse command line arguments
 PLATFORMS=""
+ARCH_FLAG=""
+REBUILD_ELECTRON=false
+
 for arg in "$@"; do
     case $arg in
         --mac)
@@ -11,9 +14,13 @@ for arg in "$@"; do
             ;;
         --win)
             PLATFORMS="$PLATFORMS --win"
+            REBUILD_ELECTRON=true
             ;;
         --linux)
             PLATFORMS="$PLATFORMS --linux"
+            ;;
+        --x64)
+            ARCH_FLAG="--x64"
             ;;
         *)
             # Unknown argument, pass it through
@@ -30,6 +37,16 @@ fi
 echo "Building Next.js for Electron..."
 ELECTRON_BUILD=true npm run build
 
+# Rebuild electron for Windows x64 if needed
+if [ "$REBUILD_ELECTRON" = true ]; then
+    echo "Rebuilding Electron for Windows x64..."
+    if command -v npx &> /dev/null; then
+        npx electron-rebuild --arch=x64 --force || echo "Warning: electron-rebuild failed, continuing anyway..."
+    else
+        echo "Warning: npx not found, skipping electron-rebuild"
+    fi
+fi
+
 echo "Temporarily moving problematic Sharp binaries..."
 # Backup existing x64 binaries if they exist
 if [ -d "node_modules/@img/sharp-darwin-x64" ]; then
@@ -40,11 +57,11 @@ if [ -d "node_modules/@img/sharp-libvips-darwin-x64" ]; then
     mv node_modules/@img/sharp-libvips-darwin-x64 node_modules/@img/sharp-libvips-darwin-x64.bak
 fi
 
-echo "Building Electron app for platforms: $PLATFORMS"
+echo "Building Electron app for platforms: $PLATFORMS $ARCH_FLAG"
 if [ -z "$PLATFORMS" ]; then
-    electron-builder
+    electron-builder $ARCH_FLAG
 else
-    electron-builder $PLATFORMS
+    electron-builder $PLATFORMS $ARCH_FLAG
 fi
 
 echo "Restoring Sharp binaries..."
@@ -61,3 +78,22 @@ echo "Electron build complete!"
 echo ""
 echo "Built packages:"
 ls -la dist/ | grep -E '\.(dmg|zip|exe|deb|rpm|AppImage|tar\.gz)$' || echo "No packages found in dist/"
+
+# Verify Windows x64 builds if Windows was built
+if echo "$PLATFORMS" | grep -q "win"; then
+    echo ""
+    echo "Verifying Windows x64 builds:"
+    find dist/ -name "*x64*" -o -name "*win*" | while read file; do
+        echo "✓ $file"
+        if command -v file &> /dev/null && [ -f "$file" ]; then
+            file_info=$(file "$file" 2>/dev/null || echo "")
+            if echo "$file_info" | grep -q "x86-64\|AMD64\|64-bit"; then
+                echo "  → Architecture: 64-bit ✓"
+            elif echo "$file_info" | grep -q "386\|32-bit"; then
+                echo "  → Architecture: 32-bit ⚠️"
+            else
+                echo "  → Architecture: Unable to determine"
+            fi
+        fi
+    done
+fi

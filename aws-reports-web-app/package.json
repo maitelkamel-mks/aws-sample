@@ -14,13 +14,15 @@
     "lint": "next lint",
     "clean": "rm -rf node_modules package-lock.json && npm cache clean --force && npm install",
     "dev:clean": "npm run clean && npm run dev",
-    "electron": "electron electron/main.js",
+    "electron": "NODE_ENV=development electron electron/main.js",
     "electron:dev": "NODE_ENV=development electron electron/main.js",
+    "electron:prod": "npm run build && NODE_ENV=production electron electron/main.js",
     "electron:build": "./scripts/build-electron.sh",
     "electron:build:mac": "./scripts/build-electron.sh --mac",
-    "electron:build:win": "./scripts/build-electron.sh --win",
+    "electron:build:win": "./scripts/build-electron.sh --win --x64",
     "electron:build:linux": "./scripts/build-electron.sh --linux",
     "electron:build:all": "./scripts/build-electron.sh --mac --win --linux",
+    "electron:verify-win": "node -e \"const fs = require('fs'); const path = require('path'); const files = fs.readdirSync('dist').filter(f => f.includes('win') || f.includes('x64')); console.log('Windows builds:', files); files.forEach(f => console.log('File:', f, 'Size:', fs.statSync(path.join('dist', f)).size, 'bytes'));\"",
     "dist": "npm run build:electron && electron-builder --publish=never"
   },
   "dependencies": {
@@ -55,6 +57,7 @@
     "@types/react-dom": "^18.3.7",
     "electron": "^37.2.1",
     "electron-builder": "^26.0.12",
+    "electron-rebuild": "^3.6.0",
     "electron-reload": "^2.0.0-alpha.1",
     "eslint": "^9",
     "eslint-config-next": "15.3.4",
@@ -66,6 +69,8 @@
   "build": {
     "appId": "com.awsreports.app",
     "productName": "AWS Reports",
+    "electronVersion": "37.2.1",
+    "arch": "x64",
     "directories": {
       "output": "dist"
     },
@@ -109,7 +114,11 @@
         }
       ],
       "artifactName": "${productName}-${version}-${arch}-setup.${ext}",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "arch": [
+        "x64"
+      ],
+      "icon": "public/icon.ico"
     },
     "linux": {
       "target": [
@@ -148,6 +157,10 @@
     ],
     "extraMetadata": {
       "dependencies": {}
-    }
+    },
+    "electronDownload": {
+      "arch": "x64"
+    },
+    "forceCodeSigning": false
   }
 }
