@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -135,6 +136,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="error-container">
         <div class="error-icon">⚠️</div>
@@ -145,7 +147,7 @@
         <div class="error-details" id="errorDetails" style="display: none;">
             Error details will appear here...
         </div>
-        
+
         <div>
             <button class="retry-button" onclick="retryApplication()">
                 🔄 Retry
@@ -166,8 +168,8 @@
             </ul>
         </div>
     </div>
-    
-    <div class="version">AWS Reports v0.1.0</div>
+
+    <div class="version">AWS Reports v1.0.0</div>
 
     <script>
         // Function to retry the application
@@ -194,11 +196,11 @@
         function setErrorDetails(message, details) {
             const errorMessage = document.getElementById('errorMessage');
             const errorDetails = document.getElementById('errorDetails');
-            
+
             if (message) {
                 errorMessage.textContent = message;
             }
-            
+
             if (details) {
                 errorDetails.textContent = details;
                 errorDetails.style.display = 'block';
@@ -213,4 +215,5 @@
         });
     </script>
 </body>
+
 </html>

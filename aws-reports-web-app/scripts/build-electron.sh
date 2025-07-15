@@ -5,7 +5,6 @@
 # Parse command line arguments
 PLATFORMS=""
 ARCH_FLAG=""
-REBUILD_ELECTRON=false
 
 for arg in "$@"; do
     case $arg in
@@ -14,7 +13,6 @@ for arg in "$@"; do
             ;;
         --win)
             PLATFORMS="$PLATFORMS --win"
-            REBUILD_ELECTRON=true
             ;;
         --linux)
             PLATFORMS="$PLATFORMS --linux"
@@ -36,16 +34,6 @@ fi
 
 echo "Building Next.js for Electron..."
 ELECTRON_BUILD=true npm run build
-
-# Rebuild electron for Windows x64 if needed
-if [ "$REBUILD_ELECTRON" = true ]; then
-    echo "Rebuilding Electron for Windows x64..."
-    if command -v npx &> /dev/null; then
-        npx electron-rebuild --arch=x64 --force || echo "Warning: electron-rebuild failed, continuing anyway..."
-    else
-        echo "Warning: npx not found, skipping electron-rebuild"
-    fi
-fi
 
 echo "Temporarily moving problematic Sharp binaries..."
 # Backup existing x64 binaries if they exist
