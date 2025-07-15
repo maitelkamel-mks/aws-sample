@@ -12,7 +12,7 @@ const ProxyConfigSchema = z.object({
   username: z.string().optional(),
   password: z.string().optional(),
   no_proxy: z.array(z.string()).optional(),
-}).optional();
+});
 
 const CostConfigSchema = z.object({
   profiles: z.array(z.string()),
@@ -115,7 +115,7 @@ export class ConfigManager {
       const fileContent = fs.readFileSync(configPath, 'utf8');
       const rawConfig = yaml.parse(fileContent);
       return ProxyConfigSchema.parse(rawConfig);
-    } catch (error) {
+    } catch {
       return null;
     }
   }

@@ -4,7 +4,7 @@ import { ApiResponse } from '@/lib/types';
 import { ProxyConfig, ProxyStatus, ProxyTestResult } from '@/lib/types/proxy';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const configManager = ConfigManager.getInstance();
     const proxyConfig = await configManager.loadProxyConfig();
@@ -131,7 +131,7 @@ async function testProxyConnection(url: string, username?: string, password?: st
     
     // Test connection to a reliable endpoint
     const response = await fetch('https://httpbin.org/ip', {
-      // @ts-ignore - Node.js specific
+      // @ts-expect-error - Node.js specific agent property not in browser fetch types
       agent,
       signal: AbortSignal.timeout(10000), // 10 second timeout
     });

@@ -2,7 +2,7 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 import { HttpProxyAgent } from 'http-proxy-agent';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import { AwsCredentialIdentity, Provider } from '@aws-sdk/types';
-import { ProxyConfig } from '../types/proxy';
+// Removed unused import: ProxyConfig
 import { ConfigManager } from '../config';
 
 /**

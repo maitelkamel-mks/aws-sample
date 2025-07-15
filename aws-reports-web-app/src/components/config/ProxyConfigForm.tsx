@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Form, Input, Switch, Button, Alert, Typography, Space, Divider, Tag, Spin } from 'antd';
 import { CheckCircleOutlined, CloseCircleOutlined, SyncOutlined, GlobalOutlined } from '@ant-design/icons';
 import { ProxyConfig, ProxyFormData, ProxyStatus, ProxyEnvironmentDetection, ProxyTestResult } from '@/lib/types/proxy';
@@ -21,11 +21,7 @@ export default function ProxyConfigForm({ onSave }: ProxyConfigFormProps) {
   const [envDetection, setEnvDetection] = useState<ProxyEnvironmentDetection | null>(null);
   const [testResult, setTestResult] = useState<ProxyTestResult | null>(null);
 
-  useEffect(() => {
-    loadProxyConfig();
-  }, []);
-
-  const loadProxyConfig = async () => {
+  const loadProxyConfig = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/config/proxy');
@@ -58,7 +54,11 @@ export default function ProxyConfigForm({ onSave }: ProxyConfigFormProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [form]);
+
+  useEffect(() => {
+    loadProxyConfig();
+  }, [loadProxyConfig]);
 
   const handleSave = async (values: ProxyFormData) => {
     setSaving(true);
