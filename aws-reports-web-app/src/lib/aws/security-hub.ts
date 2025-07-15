@@ -23,7 +23,7 @@ export class SecurityHubService {
   ): Promise<SecurityFinding[]> {
     try {
       const credentials = await this.credentialsManager.getCredentialsForProfile(profile);
-      const clientConfig = createAWSClientConfig(region, credentials);
+      const clientConfig = await createAWSClientConfig(region, credentials);
       const client = new SecurityHubClient(clientConfig);
 
       const input: GetFindingsCommandInput = {

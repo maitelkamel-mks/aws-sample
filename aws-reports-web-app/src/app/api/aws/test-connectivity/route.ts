@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       try {
         // Create STS client with the specific profile
         const credentials = fromIni({ profile });
-        const clientConfig = createAWSClientConfig('us-east-1', credentials); // STS is available in all regions, using us-east-1 as default
+        const clientConfig = await createAWSClientConfig('us-east-1', credentials); // STS is available in all regions, using us-east-1 as default
         const stsClient = new STSClient(clientConfig);
 
         // Try to get caller identity to test connectivity

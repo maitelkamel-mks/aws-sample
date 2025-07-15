@@ -1,8 +1,8 @@
 {
   "name": "aws-reports-web-app",
-  "version": "0.1.0",
-  "description": "AWS Cost and Security Reports Desktop Application",
-  "author": "AWS Reports Team",
+  "version": "1.0.0",
+  "description": "AWS reports desktop application",
+  "author": "Mohamed Aït El Kamel",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -91,15 +91,21 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "artifactName": "${productName}-${version}-${arch}-setup.${ext}",
@@ -109,19 +115,27 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "rpm",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "tar.gz",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "category": "Development",

@@ -1,0 +1,9 @@
+enabled: false
+# url: "http://proxy.company.com:8080"
+# username: "proxy-user"
+# password: "proxy-password"
+# no_proxy:
+#   - localhost
+#   - "*.internal.com"
+#   - "127.0.0.1"
+#   - "::1"

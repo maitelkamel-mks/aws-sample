@@ -22,7 +22,7 @@ export class CostExplorerService {
   ): Promise<CostData[]> {
     try {
       const credentials = await this.credentialsManager.getCredentialsForProfile(profile);
-      const clientConfig = createAWSClientConfig('us-east-1', credentials); // Cost Explorer is only available in us-east-1
+      const clientConfig = await createAWSClientConfig('us-east-1', credentials); // Cost Explorer is only available in us-east-1
       const client = new CostExplorerClient(clientConfig);
 
       const input: GetCostAndUsageCommandInput = {

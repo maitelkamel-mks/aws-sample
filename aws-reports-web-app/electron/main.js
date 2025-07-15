@@ -4,6 +4,7 @@ const { spawn } = require('child_process');
 const fs = require('fs').promises;
 const os = require('os');
 const yaml = require('yaml');
+const http = require('http');
 
 // Handle development vs production
 const isDev = process.env.NODE_ENV === 'development';
@@ -36,61 +37,25 @@ function createWindow() {
     },
     icon: path.join(__dirname, '..', 'public', 'favicon.ico'),
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    show: true // Show immediately for debugging
+    show: false, // Don't show until ready
+    backgroundColor: '#667eea' // Match splash screen background
   });
 
-  console.log('Window created, loading URL...');
+  console.log('Window created, showing splash screen...');
+  
+  // Load splash screen immediately
+  mainWindow.loadFile(path.join(__dirname, 'splash.html'));
+  
+  // Show window with splash screen
+  mainWindow.show();
+  
+  console.log('Splash screen loaded, starting server...');
 
-  // Load the app
-  if (isDev) {
-    console.log('Development mode: loading localhost:3000');
-    
-    // Wait for Next.js server to be ready before loading
-    setTimeout(() => {
-      mainWindow.loadURL('http://localhost:3000');
-      mainWindow.webContents.openDevTools();
-    }, 2000);
-  } else {
-    console.log('Production mode: starting Next.js server programmatically');
-    
-    try {
-      // Start Next.js server programmatically using the Next.js API
-      const next = require('next');
-      const nextApp = next({ dev: false, dir: path.join(__dirname, '..') });
-      const handle = nextApp.getRequestHandler();
-      
-      nextApp.prepare().then(() => {
-        const http = require('http');
-        const server = http.createServer((req, res) => {
-          handle(req, res);
-        });
-        
-        server.listen(3001, (err) => {
-          if (err) {
-            console.error('Failed to start Next.js server:', err);
-            // Fallback - just show a basic page
-            mainWindow.loadURL('data:text/html,<h1>Next.js server failed to start</h1><p>Error: ' + err.message + '</p>');
-            return;
-          }
-          
-          console.log('Next.js server ready on port 3001');
-          mainWindow.loadURL('http://localhost:3001');
-          mainWindow.webContents.openDevTools();
-        });
-        
-        // Store for cleanup
-        global.nextServer = server;
-      }).catch((err) => {
-        console.error('Failed to prepare Next.js app:', err);
-        // Fallback - just show a basic page
-        mainWindow.loadURL('data:text/html,<h1>Next.js failed to initialize</h1><p>Error: ' + err.message + '</p>');
-      });
-    } catch (error) {
-      console.error('Failed to require Next.js:', error);
-      // Fallback - just show a basic page
-      mainWindow.loadURL('data:text/html,<h1>Next.js not available</h1><p>Running in standalone mode</p>');
-    }
-  }
+  // Start server and load app in parallel
+  loadApplication().catch((error) => {
+    console.error('Failed to load application:', error);
+    showErrorPage('Application startup failed', error.message);
+  });
 
   // Debug events
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
@@ -107,38 +72,211 @@ function createWindow() {
   });
 }
 
-// Start Next.js server in development
-async function startNextServer() {
-  if (isDev) {
-    console.log('Starting Next.js development server...');
-    nextServer = spawn('npm', ['run', 'dev'], {
-      cwd: path.join(__dirname, '..'),
-      stdio: 'inherit'
-    });
+// Track if we're already loading to prevent multiple calls
+let isLoadingApplication = false;
 
-    // Wait for server to be ready
-    await new Promise(resolve => {
-      let attempts = 0;
-      const maxAttempts = 30; // 30 seconds max
+// Load the application with splash screen
+async function loadApplication() {
+  if (isLoadingApplication) {
+    console.log('Application is already loading...');
+    return;
+  }
+  
+  isLoadingApplication = true;
+  updateSplashStatus('Starting server...');
+  
+  try {
+    if (isDev) {
+      console.log('Starting Next.js development server...');
       
-      const checkServer = setInterval(async () => {
-        attempts++;
-        try {
-          const response = await fetch('http://localhost:3000');
-          if (response.ok) {
-            console.log('Next.js server is ready!');
-            clearInterval(checkServer);
-            resolve();
-          }
-        } catch (error) {
-          console.log(`Waiting for server... (attempt ${attempts}/${maxAttempts})`);
-          if (attempts >= maxAttempts) {
-            console.error('Server failed to start after 30 seconds');
-            clearInterval(checkServer);
-            resolve(); // Continue anyway
-          }
+      // Start the dev server
+      nextServer = spawn('npm', ['run', 'dev'], {
+        cwd: path.join(__dirname, '..'),
+        stdio: 'inherit'
+      });
+
+      // Wait for server to be ready with faster polling
+      await waitForServer('http://localhost:3000');
+      
+      console.log('Loading development app...');
+      mainWindow.loadURL('http://localhost:3000');
+      mainWindow.webContents.openDevTools();
+      
+    } else {
+    console.log('Starting Next.js production server...');
+    
+    try {
+      updateSplashStatus('Preparing Next.js app...');
+      
+      // Start Next.js server programmatically with optimizations
+      const next = require('next');
+      const nextApp = next({ 
+        dev: false, 
+        dir: path.join(__dirname, '..'),
+        quiet: true, // Reduce logging for faster startup
+        customServer: true // Enable custom server optimizations
+      });
+      const handle = nextApp.getRequestHandler();
+      
+      // Prepare Next.js app
+      await nextApp.prepare();
+      
+      updateSplashStatus('Starting production server...');
+      
+      const http = require('http');
+      const server = http.createServer((req, res) => {
+        // Add basic caching headers for faster subsequent loads
+        if (req.url.includes('/_next/static/')) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         }
-      }, 1000);
+        handle(req, res);
+      });
+      
+      // Configure server options for better performance
+      server.keepAliveTimeout = 5000;
+      server.headersTimeout = 6000;
+      
+      await new Promise((resolve, reject) => {
+        server.listen(3001, '127.0.0.1', (err) => {
+          if (err) {
+            console.error('Failed to start Next.js server:', err);
+            reject(err);
+            return;
+          }
+          
+          console.log('Next.js server ready on port 3001');
+          resolve();
+        });
+      });
+      
+      // Store for cleanup
+      global.nextServer = server;
+      
+      updateSplashStatus('Loading application...');
+      
+      // Add a small delay to ensure server is fully ready
+      setTimeout(() => {
+        mainWindow.loadURL('http://localhost:3001');
+      }, 100);
+      
+    } catch (error) {
+      console.error('Failed to start production server:', error);
+      updateSplashStatus('Error starting server');
+      
+      // Show proper error page
+      showErrorPage('Failed to start production server', error.message);
+    }
+    }
+  } finally {
+    isLoadingApplication = false;
+  }
+}
+
+// Track if we're already checking server to prevent multiple calls
+let isCheckingServer = false;
+
+// Simple server detection with Node.js http
+function waitForServer(url) {
+  if (isCheckingServer) {
+    console.log('Server check already in progress...');
+    return Promise.resolve();
+  }
+  
+  isCheckingServer = true;
+  updateSplashStatus('Waiting for server...');
+  
+  return new Promise((resolve) => {
+    let attempts = 0;
+    const maxAttempts = 75; // 15 seconds max
+    let checkTimeout;
+    
+    const checkServer = () => {
+      attempts++;
+      
+      const urlObj = new URL(url);
+      const req = http.request({
+        hostname: urlObj.hostname,
+        port: urlObj.port,
+        path: urlObj.pathname,
+        method: 'GET',
+        timeout: 1000,
+      }, (res) => {
+        if (res.statusCode === 200) {
+          console.log(`Server ready after ${attempts} attempts`);
+          updateSplashStatus('Server ready!');
+          isCheckingServer = false;
+          resolve();
+          return;
+        }
+        // Server returned non-200 status, continue checking
+        scheduleNextCheck();
+      });
+
+      req.on('error', () => {
+        // Server not ready yet, continue checking
+        scheduleNextCheck();
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        scheduleNextCheck();
+      });
+
+      req.end();
+      
+      function scheduleNextCheck() {
+        if (attempts >= maxAttempts) {
+          console.error('Server failed to start after maximum attempts');
+          updateSplashStatus('Server startup timeout');
+          isCheckingServer = false;
+          showErrorPage('Server startup timeout', 'The Next.js server failed to start within the expected time. This may be due to port conflicts or system resources.');
+          resolve();
+          return;
+        }
+        
+        if (attempts % 5 === 0) { // Only log every 5th attempt
+          console.log(`Waiting for server... (attempt ${attempts}/${maxAttempts})`);
+        }
+        updateSplashStatus(`Checking server (${attempts}/${maxAttempts})...`);
+        
+        checkTimeout = setTimeout(checkServer, 200);
+      }
+    };
+    
+    checkServer();
+  });
+}
+
+// Update splash screen status
+function updateSplashStatus(message) {
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.executeJavaScript(`
+      const statusElement = document.getElementById('statusText');
+      if (statusElement) {
+        statusElement.textContent = '${message}';
+      }
+    `).catch(() => {
+      // Ignore errors if splash screen is not loaded
+    });
+  }
+}
+
+// Show error page with details
+function showErrorPage(message, details) {
+  if (mainWindow) {
+    mainWindow.loadFile(path.join(__dirname, 'error.html'));
+    
+    // Wait for error page to load, then send error details
+    mainWindow.webContents.once('did-finish-load', () => {
+      // Safely escape the strings to prevent JS injection/syntax errors
+      const safeMessage = message ? message.replace(/'/g, "\\'").replace(/"/g, '\\"') : '';
+      const safeDetails = details ? details.replace(/'/g, "\\'").replace(/"/g, '\\"') : '';
+      
+      mainWindow.webContents.executeJavaScript(`
+        setErrorDetails('${safeMessage}', '${safeDetails}');
+      `).catch((error) => {
+        console.error('Failed to set error details:', error);
+      });
     });
   }
 }
@@ -239,6 +377,93 @@ ipcMain.handle('file:write', async (event, filePath, content) => {
   }
 });
 
+// IPC Handler for proxy configuration
+ipcMain.handle('proxy:get', async (event) => {
+  try {
+    const configPath = path.join(process.cwd(), 'proxy', 'config.yaml');
+    
+    const content = await fs.readFile(configPath, 'utf-8');
+    const config = yaml.parse(content);
+    
+    return {
+      success: true,
+      data: {
+        config: config || null,
+        environment: {
+          httpProxy: process.env.HTTP_PROXY || process.env.http_proxy,
+          httpsProxy: process.env.HTTPS_PROXY || process.env.https_proxy,
+          noProxy: process.env.NO_PROXY || process.env.no_proxy,
+        }
+      }
+    };
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return {
+        success: true,
+        data: {
+          config: null,
+          environment: {
+            httpProxy: process.env.HTTP_PROXY || process.env.http_proxy,
+            httpsProxy: process.env.HTTPS_PROXY || process.env.https_proxy,
+            noProxy: process.env.NO_PROXY || process.env.no_proxy,
+          }
+        }
+      };
+    }
+    throw error;
+  }
+});
+
+// IPC Handler for proxy configuration save
+ipcMain.handle('proxy:save', async (event, proxyConfig) => {
+  try {
+    const configPath = path.join(process.cwd(), 'proxy', 'config.yaml');
+    
+    // Ensure directory exists
+    const dir = path.dirname(configPath);
+    await fs.mkdir(dir, { recursive: true });
+    
+    // Write config
+    await fs.writeFile(configPath, yaml.stringify(proxyConfig), 'utf-8');
+    
+    return { success: true };
+  } catch (error) {
+    throw error;
+  }
+});
+
+// IPC Handler for retry application
+ipcMain.handle('app:retry', async () => {
+  try {
+    console.log('Retrying application startup...');
+    // Reset loading states
+    isLoadingApplication = false;
+    isCheckingServer = false;
+    
+    // Load splash screen again
+    mainWindow.loadFile(path.join(__dirname, 'splash.html'));
+    
+    // Wait a bit for splash screen to load, then retry
+    setTimeout(() => {
+      loadApplication().catch((error) => {
+        console.error('Retry failed:', error);
+        showErrorPage('Retry failed', error.message);
+      });
+    }, 500);
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Retry failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// IPC Handler for close application
+ipcMain.handle('app:close', () => {
+  console.log('Closing application...');
+  app.quit();
+});
+
 // App menu
 function createMenu() {
   const template = [
@@ -312,12 +537,11 @@ function createMenu() {
 app.disableHardwareAcceleration();
 
 // App event handlers
-app.whenReady().then(async () => {
+app.whenReady().then(() => {
   console.log('Electron app is ready');
-  await startNextServer();
   createWindow();
   createMenu();
-  console.log('Initialization complete');
+  console.log('Window created, loading application...');
 });
 
 app.on('window-all-closed', () => {

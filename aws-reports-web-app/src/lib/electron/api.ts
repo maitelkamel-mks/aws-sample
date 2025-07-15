@@ -17,12 +17,31 @@ interface ConfigData {
   [key: string]: unknown;
 }
 
+interface ProxyConfig {
+  enabled: boolean;
+  url?: string;
+  username?: string;
+  password?: string;
+  no_proxy?: string[];
+}
+
+interface ProxyData {
+  config: ProxyConfig | null;
+  environment: {
+    httpProxy?: string;
+    httpsProxy?: string;
+    noProxy?: string;
+  };
+}
+
 declare global {
   interface Window {
     electronAPI?: {
       getAWSProfiles: () => Promise<string[]>;
       readConfig: (type: 'cost' | 'security') => Promise<ConfigData | null>;
       writeConfig: (type: 'cost' | 'security', config: ConfigData) => Promise<{ success: boolean }>;
+      getProxyConfig: () => Promise<{ success: boolean; data: ProxyData }>;
+      saveProxyConfig: (config: ProxyConfig) => Promise<{ success: boolean }>;
       saveFile: (options: SaveFileOptions) => Promise<SaveFileResult>;
       writeFile: (filePath: string, content: string) => Promise<{ success: boolean }>;
       platform: string;
@@ -76,6 +95,36 @@ export const electronAPI = {
       body: JSON.stringify(config),
     });
     if (!response.ok) throw new Error('Failed to write config');
+  },
+
+  // Proxy operations
+  getProxyConfig: async (): Promise<ProxyData> => {
+    if (isElectron()) {
+      const result = await window.electronAPI!.getProxyConfig();
+      return result.data;
+    }
+    // Fallback to HTTP API
+    const response = await fetch('/api/config/proxy');
+    if (!response.ok) throw new Error('Failed to get proxy config');
+    const result = await response.json();
+    return {
+      config: result.data.config,
+      environment: result.data.environment,
+    };
+  },
+
+  saveProxyConfig: async (config: ProxyConfig): Promise<void> => {
+    if (isElectron()) {
+      await window.electronAPI!.saveProxyConfig(config);
+      return;
+    }
+    // Fallback to HTTP API
+    const response = await fetch('/api/config/proxy', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    if (!response.ok) throw new Error('Failed to save proxy config');
   },
 
   // File operations
