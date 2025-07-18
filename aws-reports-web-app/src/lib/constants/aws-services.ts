@@ -13,7 +13,9 @@ export const AWS_SERVICES = [
   'Amazon ElastiCache',
   'Amazon Elastic Compute Cloud - Compute',
   'Amazon Elastic Container Service',
+  'Amazon Elastic File System',
   'Amazon Elastic Kubernetes Service',
+  'Amazon Elastic Load Balancing',
   'Amazon GuardDuty',
   'Amazon Inspector',
   'Amazon Kinesis',
@@ -28,6 +30,7 @@ export const AWS_SERVICES = [
   'Amazon Simple Storage Service',
   'Amazon Virtual Private Cloud',
   'AmazonCloudWatch',
+  'AWS Backup',
   'AWS Certificate Manager',
   'AWS CloudFormation',
   'AWS CloudTrail',
@@ -36,12 +39,14 @@ export const AWS_SERVICES = [
   'AWS CodeDeploy',
   'AWS CodePipeline',
   'AWS Config',
+  'AWS Cost Explorer',
   'AWS Fargate',
   'AWS Glue',
   'AWS Identity and Access Management',
   'AWS Key Management Service',
   'AWS Lambda',
   'AWS Secrets Manager',
+  'AWS Security Hub',
   'AWS Step Functions',
   'AWS Support (Basic)',
   'AWS Support (Business)',
@@ -50,7 +55,10 @@ export const AWS_SERVICES = [
   'AWS Systems Manager',
   'AWS Transfer Family',
   'AWS WAF',
+  'CloudWatch Events',
+  'EC2 - Other',
   'Elastic Load Balancing',
+  'Tax'
 ].sort(); // Sort alphabetically
 
 // Convert to options format for Ant Design Select component
