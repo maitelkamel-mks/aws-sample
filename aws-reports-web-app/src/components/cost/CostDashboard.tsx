@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, Row, Col, DatePicker, Select, Button, Table, Typography, Space, Spin, App, Tabs, Switch, Dropdown, MenuProps } from 'antd';
 import { ReloadOutlined, DownloadOutlined, FileExcelOutlined, FilePdfOutlined, GlobalOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
@@ -116,35 +116,32 @@ export default function CostDashboard() {
     }
   }, [costConfig, useConfigDefaults]);
 
-  const { data: costData, isLoading: costLoading, error: costError, refetch } = useQuery({
-    queryKey: ['cost-data', selectedProfiles, dateRange, granularity, includeTaxes, includeSupport, selectedServices],
+  // Fetch raw cost data without any filtering
+  const { data: rawCostData, isLoading: costLoading, error: costError, refetch } = useQuery({
+    queryKey: ['cost-data-raw', selectedProfiles, dateRange, granularity],
     queryFn: async () => {
       if (selectedProfiles.length === 0) return null;
-      
+
       // For annual granularity, fetch monthly data and aggregate
       const apiGranularity = granularity === 'ANNUAL' ? 'MONTHLY' : granularity;
-      
+
       // Format dates based on granularity - hourly requires specific format
-      const startDate = granularity === 'HOURLY' 
+      const startDate = granularity === 'HOURLY'
         ? dateRange[0].startOf('day').format('YYYY-MM-DD[T]00:00:00[Z]')
         : dateRange[0].format('YYYY-MM-DD');
-      const endDate = granularity === 'HOURLY' 
+      const endDate = granularity === 'HOURLY'
         ? dateRange[1].endOf('day').format('YYYY-MM-DD[T]23:59:59[Z]')
         : dateRange[1].format('YYYY-MM-DD');
-      
+
       const params = new URLSearchParams({
         profiles: selectedProfiles.join(','),
         startDate,
         endDate,
         granularity: apiGranularity,
-        excludeTaxes: (!includeTaxes).toString(),
-        excludeSupport: (!includeSupport).toString(),
+        excludeTaxes: 'false', // Always load all data
+        excludeSupport: 'false', // Always load all data
       });
-
-      // Add services parameter if services are selected
-      if (selectedServices.length > 0) {
-        params.set('services', selectedServices.join(','));
-      }
+      // Never pass services parameter - always load all services
 
       const response = await fetch(`/api/cost/data?${params}`);
       if (!response.ok) {
@@ -153,12 +150,12 @@ export default function CostDashboard() {
       }
       const result = await response.json();
       const data = result.data as CostResponse;
-      
+
       // If annual granularity, aggregate monthly data into years
       if (granularity === 'ANNUAL' && data) {
         const aggregatedData: CostData[] = [];
         const yearMap: Record<string, Record<string, Record<string, number>>> = {};
-        
+
         // Group by year, profile, and service
         data.data.forEach(item => {
           const year = dayjs(item.period).year().toString();
@@ -167,7 +164,7 @@ export default function CostDashboard() {
           if (!yearMap[year][item.profile][item.service]) yearMap[year][item.profile][item.service] = 0;
           yearMap[year][item.profile][item.service] += item.amount;
         });
-        
+
         // Convert to array format
         Object.entries(yearMap).forEach(([year, profiles]) => {
           Object.entries(profiles).forEach(([profile, services]) => {
@@ -182,18 +179,88 @@ export default function CostDashboard() {
             });
           });
         });
-        
+
         return {
           data: aggregatedData,
           summaries: data.summaries
         };
       }
-      
+
       return data;
     },
     enabled: false,
   });
 
+  // Apply filters dynamically to the raw data
+  const costData = useMemo(() => {
+    if (!rawCostData) return null;
+
+    let filteredData = rawCostData.data;
+
+    // Apply service filtering - only show selected services
+    if (selectedServices.length > 0) {
+      filteredData = filteredData.filter(item =>
+        selectedServices.includes(item.service)
+      );
+    }
+
+    // Apply tax and support filtering
+    if (!includeTaxes || !includeSupport) {
+      filteredData = filteredData.filter(item => {
+        // Filter out taxes if requested
+        if (!includeTaxes && item.service === 'Tax') {
+          return false;
+        }
+
+        // Filter out support services if requested
+        if (!includeSupport && (
+          item.service.startsWith('AWS Support') ||
+          item.service === 'Support'
+        )) {
+          return false;
+        }
+
+        return true;
+      });
+    }
+
+    return {
+      data: filteredData,
+      summaries: rawCostData.summaries
+    };
+  }, [rawCostData, selectedServices, includeTaxes, includeSupport]);
+
+  // Generate all periods within the date range based on granularity
+  const generateAllPeriods = (startDate: dayjs.Dayjs, endDate: dayjs.Dayjs, granularity: string): string[] => {
+    const periods: string[] = [];
+    let current = startDate.clone();
+
+    while (current.isBefore(endDate) || current.isSame(endDate)) {
+      switch (granularity) {
+        case 'HOURLY':
+          periods.push(current.format('YYYY-MM-DD[T]HH:mm:ss[Z]'));
+          current = current.add(1, 'hour');
+          break;
+        case 'DAILY':
+          periods.push(current.format('YYYY-MM-DD'));
+          current = current.add(1, 'day');
+          break;
+        case 'MONTHLY':
+          periods.push(current.format('YYYY-MM-DD'));
+          current = current.add(1, 'month');
+          break;
+        case 'ANNUAL':
+          periods.push(current.format('YYYY'));
+          current = current.add(1, 'year');
+          break;
+        default:
+          periods.push(current.format('YYYY-MM-DD'));
+          current = current.add(1, 'month');
+      }
+    }
+
+    return periods;
+  };
 
   // Generate service columns for individual account tables
   const generateServiceColumns = (periods: string[]) => {
@@ -207,7 +274,7 @@ export default function CostDashboard() {
         sorter: (a, b) => a.service.localeCompare(b.service),
       }
     ];
-    
+
     periods.forEach(period => {
       columns.push({
         title: period,
@@ -218,7 +285,7 @@ export default function CostDashboard() {
         sorter: (a, b) => (Number(a[period]) || 0) - (Number(b[period]) || 0),
       });
     });
-    
+
     columns.push({
       title: 'Total',
       dataIndex: 'total',
@@ -230,7 +297,7 @@ export default function CostDashboard() {
       sorter: (a, b) => a.total - b.total,
       defaultSortOrder: 'descend',
     });
-    
+
     return columns;
   };
 
@@ -246,7 +313,7 @@ export default function CostDashboard() {
         sorter: (a, b) => a.account.localeCompare(b.account),
       }
     ];
-    
+
     periods.forEach(period => {
       columns.push({
         title: period,
@@ -257,7 +324,7 @@ export default function CostDashboard() {
         sorter: (a, b) => (Number(a[period]) || 0) - (Number(b[period]) || 0),
       });
     });
-    
+
     columns.push({
       title: 'Total',
       dataIndex: 'total',
@@ -269,14 +336,14 @@ export default function CostDashboard() {
       sorter: (a, b) => a.total - b.total,
       defaultSortOrder: 'descend',
     });
-    
+
     return columns;
   };
 
   // Generate charts for individual profile
   const generateProfileCharts = (profile: string, data: ServiceTableRow[], periods: string[]) => {
     const serviceData = data.filter(row => row.service !== 'Total');
-    
+
     // Stacked bar chart data
     const barData = {
       labels: periods,
@@ -309,7 +376,7 @@ export default function CostDashboard() {
         tooltip: {
           callbacks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            label: function(context: any) {
+            label: function (context: any) {
               return `${context.dataset.label || context.label}: $${context.raw.toLocaleString()}`;
             },
           },
@@ -323,7 +390,7 @@ export default function CostDashboard() {
           stacked: true,
           ticks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            callback: function(value: any) {
+            callback: function (value: any) {
               return '$' + value.toLocaleString();
             },
           },
@@ -341,7 +408,7 @@ export default function CostDashboard() {
         tooltip: {
           callbacks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            label: function(context: any) {
+            label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
               return `${context.label}: $${context.raw.toLocaleString()} (${percentage}%)`;
@@ -374,7 +441,7 @@ export default function CostDashboard() {
   // Generate charts for account totals
   const generateAccountCharts = (data: AccountTableRow[], periods: string[]) => {
     const accountData = data.filter(row => row.account !== 'Total');
-    
+
     // Stacked bar chart data
     const barData = {
       labels: periods,
@@ -407,7 +474,7 @@ export default function CostDashboard() {
         tooltip: {
           callbacks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            label: function(context: any) {
+            label: function (context: any) {
               return `${context.dataset.label || context.label}: $${context.raw.toLocaleString()}`;
             },
           },
@@ -421,7 +488,7 @@ export default function CostDashboard() {
           stacked: true,
           ticks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            callback: function(value: any) {
+            callback: function (value: any) {
               return '$' + value.toLocaleString();
             },
           },
@@ -439,7 +506,7 @@ export default function CostDashboard() {
         tooltip: {
           callbacks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            label: function(context: any) {
+            label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
               return `${context.label}: $${context.raw.toLocaleString()} (${percentage}%)`;
@@ -472,7 +539,7 @@ export default function CostDashboard() {
   // Generate charts for service totals
   const generateServiceCharts = (data: ServiceTableRow[], periods: string[]) => {
     const serviceData = data.filter(row => row.service !== 'Total');
-    
+
     // Stacked bar chart data
     const barData = {
       labels: periods,
@@ -505,7 +572,7 @@ export default function CostDashboard() {
         tooltip: {
           callbacks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            label: function(context: any) {
+            label: function (context: any) {
               return `${context.dataset.label || context.label}: $${context.raw.toLocaleString()}`;
             },
           },
@@ -519,7 +586,7 @@ export default function CostDashboard() {
           stacked: true,
           ticks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            callback: function(value: any) {
+            callback: function (value: any) {
               return '$' + value.toLocaleString();
             },
           },
@@ -537,7 +604,7 @@ export default function CostDashboard() {
         tooltip: {
           callbacks: {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            label: function(context: any) {
+            label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
               return `${context.label}: $${context.raw.toLocaleString()} (${percentage}%)`;
@@ -591,14 +658,14 @@ export default function CostDashboard() {
     }
 
     setExportLoading(format);
-    
+
     try {
       // For annual granularity, use the same date formatting as the main query
       const apiGranularity = granularity === 'ANNUAL' ? 'MONTHLY' : granularity;
-      const startDate = granularity === 'HOURLY' 
+      const startDate = granularity === 'HOURLY'
         ? dateRange[0].startOf('day').format('YYYY-MM-DD[T]00:00:00[Z]')
         : dateRange[0].format('YYYY-MM-DD');
-      const endDate = granularity === 'HOURLY' 
+      const endDate = granularity === 'HOURLY'
         ? dateRange[1].endOf('day').format('YYYY-MM-DD[T]23:59:59[Z]')
         : dateRange[1].format('YYYY-MM-DD');
 
@@ -631,7 +698,7 @@ export default function CostDashboard() {
       const blob = await response.blob();
       const content = await blob.text();
       const contentType = response.headers.get('content-type') || 'application/octet-stream';
-      
+
       const success = await electronAPI.saveFile(content, filename, contentType);
       if (success) {
         message.success(`Report exported as ${format.toUpperCase()}`);
@@ -676,8 +743,8 @@ export default function CostDashboard() {
         <Title level={2} style={{ margin: 0 }}>Cost Reports Dashboard</Title>
         {costConfig && (
           <Space>
-            <Button 
-              type="dashed" 
+            <Button
+              type="dashed"
               onClick={loadFromConfig}
               size="small"
             >
@@ -686,10 +753,10 @@ export default function CostDashboard() {
           </Space>
         )}
       </div>
-      
+
       <Card style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} sm={6}>
+          <Col xs={24} sm={8}>
             <label>AWS Profiles:</label>
             <Select
               mode="multiple"
@@ -702,22 +769,6 @@ export default function CostDashboard() {
             />
           </Col>
           <Col xs={24} sm={6}>
-            <label>AWS Services:</label>
-            <Select
-              mode="multiple"
-              style={{ width: '100%', marginTop: 4 }}
-              placeholder="All services (leave empty for all)"
-              value={selectedServices}
-              onChange={setSelectedServices}
-              options={AWS_SERVICE_OPTIONS}
-              allowClear
-              showSearch
-              filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-            />
-          </Col>
-          <Col xs={24} sm={5}>
             <label>Date Range:</label>
             <RangePicker
               style={{ width: '100%', marginTop: 4 }}
@@ -725,7 +776,7 @@ export default function CostDashboard() {
               onChange={(dates) => dates && setDateRange(dates as [dayjs.Dayjs, dayjs.Dayjs])}
             />
           </Col>
-          <Col xs={24} sm={3}>
+          <Col xs={24} sm={4}>
             <label>Granularity:</label>
             <Select
               style={{ width: '100%', marginTop: 4 }}
@@ -739,10 +790,10 @@ export default function CostDashboard() {
               ]}
             />
           </Col>
-          <Col xs={24} sm={4}>
+          <Col xs={24} sm={6}>
             <Space style={{ marginTop: 20 }}>
-              <Button 
-                type="primary" 
+              <Button
+                type="primary"
                 icon={<ReloadOutlined />}
                 loading={costLoading}
                 onClick={() => refetch()}
@@ -751,12 +802,12 @@ export default function CostDashboard() {
                 Generate Report
               </Button>
               {costData && (
-                <Dropdown 
-                  menu={{ items: exportMenuItems }} 
+                <Dropdown
+                  menu={{ items: exportMenuItems }}
                   placement="bottomRight"
                   disabled={exportLoading !== null}
                 >
-                  <Button 
+                  <Button
                     icon={exportLoading ? <Spin size="small" /> : <DownloadOutlined />}
                     loading={exportLoading !== null}
                     disabled={exportLoading !== null}
@@ -769,8 +820,8 @@ export default function CostDashboard() {
           </Col>
         </Row>
         <Row gutter={[16, 16]} align="middle" style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
-          <Col xs={24} sm={12}>
-            <Space size="large">
+          <Col xs={24} sm={4}>
+            <Space size="large" style={{ marginTop: 20 }}>
               <Space direction="vertical" size="small">
                 <label>Include Taxes:</label>
                 <Switch
@@ -790,6 +841,23 @@ export default function CostDashboard() {
                 />
               </Space>
             </Space>
+          </Col>
+          <Col xs={24} sm={8} style={{ paddingTop: 20 }}>
+
+            <label>AWS Services:</label>
+            <Select
+              mode="multiple"
+              style={{ width: '100%', marginTop: 4 }}
+              placeholder="All services (leave empty for all)"
+              value={selectedServices}
+              onChange={setSelectedServices}
+              options={AWS_SERVICE_OPTIONS}
+              allowClear
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+            />
           </Col>
         </Row>
       </Card>
@@ -814,34 +882,36 @@ export default function CostDashboard() {
 
       {costData && (() => {
         // Process data to match Python script structure
-        const periods = [...new Set(costData.data.map(d => d.period))].sort();
+        // Generate all periods within the date range, not just periods with data
+        const allPeriods = generateAllPeriods(dateRange[0], dateRange[1], granularity);
+        const periods = allPeriods;
         const profiles = [...new Set(costData.data.map(d => d.profile))].sort();
         const services = [...new Set(costData.data.map(d => d.service))].sort();
-        
+
         // Create service data for each profile
         const profileServiceData: Record<string, ServiceTableRow[]> = {};
         profiles.forEach(profile => {
           const profileData = costData.data.filter(d => d.profile === profile);
           const serviceMap: Record<string, ServiceTableRow> = {};
-          
+
           services.forEach(service => {
             const serviceData = profileData.filter(d => d.service === service);
             const row: ServiceTableRow = { service, total: 0 };
             let total = 0;
-            
+
             periods.forEach(period => {
               const periodData = serviceData.find(d => d.period === period);
               const amount = periodData?.amount || 0;
               row[period] = amount;
               total += amount;
             });
-            
+
             row.total = total;
             if (total > 0) serviceMap[service] = row;
           });
-          
+
           const rows = Object.values(serviceMap);
-          
+
           // Add total row for this profile
           const totalRow: ServiceTableRow = { service: 'Total', total: 0 };
           let grandTotal = 0;
@@ -852,28 +922,28 @@ export default function CostDashboard() {
           });
           totalRow.total = grandTotal;
           rows.push(totalRow);
-          
+
           profileServiceData[profile] = rows;
         });
-        
+
         // Create account total data
         const accountTotalData: AccountTableRow[] = [];
         profiles.forEach(profile => {
           const profileData = costData.data.filter(d => d.profile === profile);
           const row: AccountTableRow = { account: profile, total: 0 };
           let total = 0;
-          
+
           periods.forEach(period => {
             const periodData = profileData.filter(d => d.period === period);
             const amount = periodData.reduce((sum, d) => sum + d.amount, 0);
             row[period] = amount;
             total += amount;
           });
-          
+
           row.total = total;
           accountTotalData.push(row);
         });
-        
+
         // Add total row for accounts
         const accountTotalRow: AccountTableRow = { account: 'Total', total: 0 };
         let accountGrandTotal = 0;
@@ -884,25 +954,25 @@ export default function CostDashboard() {
         });
         accountTotalRow.total = accountGrandTotal;
         accountTotalData.push(accountTotalRow);
-        
+
         // Create service total data
         const serviceTotalData: ServiceTableRow[] = [];
         services.forEach(service => {
           const serviceData = costData.data.filter(d => d.service === service);
           const row: ServiceTableRow = { service, total: 0 };
           let total = 0;
-          
+
           periods.forEach(period => {
             const periodData = serviceData.filter(d => d.period === period);
             const amount = periodData.reduce((sum, d) => sum + d.amount, 0);
             row[period] = amount;
             total += amount;
           });
-          
+
           row.total = total;
           if (total > 0) serviceTotalData.push(row);
         });
-        
+
         // Add total row for services
         const serviceTotalRow: ServiceTableRow = { service: 'Total', total: 0 };
         let serviceGrandTotal = 0;
@@ -913,7 +983,7 @@ export default function CostDashboard() {
         });
         serviceTotalRow.total = serviceGrandTotal;
         serviceTotalData.push(serviceTotalRow);
-        
+
         // Create tab items
         const tabItems = [
           // Account totals tab (first)
@@ -1028,7 +1098,7 @@ export default function CostDashboard() {
             ),
           })),
         ];
-        
+
         return (
           <Tabs
             defaultActiveKey="account-totals"

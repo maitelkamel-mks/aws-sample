@@ -4,6 +4,40 @@ import { CostData, CostSummary } from '@/lib/types/cost';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import dayjs from 'dayjs';
+
+// Generate all periods within the date range based on granularity
+function generateAllPeriods(startDate: string, endDate: string, granularity: string): string[] {
+  const periods: string[] = [];
+  let current = dayjs(startDate);
+  const end = dayjs(endDate);
+  
+  while (current.isBefore(end) || current.isSame(end)) {
+    switch (granularity) {
+      case 'HOURLY':
+        periods.push(current.format('YYYY-MM-DD[T]HH:mm:ss[Z]'));
+        current = current.add(1, 'hour');
+        break;
+      case 'DAILY':
+        periods.push(current.format('YYYY-MM-DD'));
+        current = current.add(1, 'day');
+        break;
+      case 'MONTHLY':
+        periods.push(current.format('YYYY-MM-DD'));
+        current = current.add(1, 'month');
+        break;
+      case 'ANNUAL':
+        periods.push(current.format('YYYY'));
+        current = current.add(1, 'year');
+        break;
+      default:
+        periods.push(current.format('YYYY-MM-DD'));
+        current = current.add(1, 'month');
+    }
+  }
+  
+  return periods;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,14 +64,46 @@ export async function GET(request: NextRequest) {
       profiles,
       startDate,
       endDate,
-      granularity,
-      services,
-      excludeTaxes,
-      excludeSupport
+      granularity
     );
 
+    // Apply display-level filtering based on UI preferences
+    let filteredData = result.data;
+    
+    // Apply service filtering - only show selected services
+    if (services && services.length > 0) {
+      filteredData = filteredData.filter(item => 
+        services.includes(item.service)
+      );
+    }
+    
+    // Apply tax and support filtering
+    if (excludeTaxes || excludeSupport) {
+      filteredData = filteredData.filter(item => {
+        // Filter out taxes if requested
+        if (excludeTaxes && item.service === 'Tax') {
+          return false;
+        }
+        
+        // Filter out support services if requested
+        if (excludeSupport && (
+          item.service.startsWith('AWS Support') ||
+          item.service === 'Support'
+        )) {
+          return false;
+        }
+        
+        return true;
+      });
+    }
+
+    const finalResult = {
+      data: filteredData,
+      summaries: result.summaries
+    };
+
     if (format === 'csv') {
-      const csvContent = convertToCSV(result.data);
+      const csvContent = convertToCSV(finalResult.data);
       return new NextResponse(csvContent, {
         headers: {
           'Content-Type': 'text/csv',
@@ -45,14 +111,14 @@ export async function GET(request: NextRequest) {
         },
       });
     } else if (format === 'json') {
-      return new NextResponse(JSON.stringify(result, null, 2), {
+      return new NextResponse(JSON.stringify(finalResult, null, 2), {
         headers: {
           'Content-Type': 'application/json',
           'Content-Disposition': `attachment; filename="cost-report-${startDate}-${endDate}.json"`,
         },
       });
     } else if (format === 'pdf') {
-      const pdfBuffer = await generatePDF(result, startDate, endDate, profiles, granularity);
+      const pdfBuffer = await generatePDF(finalResult, startDate, endDate, profiles, granularity);
       return new NextResponse(pdfBuffer, {
         headers: {
           'Content-Type': 'application/pdf',
@@ -60,7 +126,7 @@ export async function GET(request: NextRequest) {
         },
       });
     } else if (format === 'xlsx') {
-      const xlsxBuffer = generateExcel(result, startDate, endDate, profiles, granularity);
+      const xlsxBuffer = generateExcel(finalResult, startDate, endDate, profiles, granularity);
       return new NextResponse(xlsxBuffer, {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -68,7 +134,7 @@ export async function GET(request: NextRequest) {
         },
       });
     } else if (format === 'html') {
-      const htmlContent = generateHTML(result, startDate, endDate, profiles, granularity);
+      const htmlContent = generateHTML(finalResult, startDate, endDate, profiles, granularity);
       return new NextResponse(htmlContent, {
         headers: {
           'Content-Type': 'text/html',
@@ -120,7 +186,8 @@ async function generatePDF(
   const doc = new jsPDF('p', 'mm', 'a4');
   
   // Process data similar to dashboard
-  const periods = [...new Set(result.data.map(d => d.period))].sort();
+  // Generate all periods within the date range, not just periods with data
+  const periods = generateAllPeriods(startDate, endDate, granularity);
   const profileList = [...new Set(result.data.map(d => d.profile))].sort();
   const services = [...new Set(result.data.map(d => d.service))].sort();
   
@@ -527,7 +594,8 @@ function generateHTML(
   const totalCost = result.summaries.reduce((sum, summary) => sum + summary.total_cost, 0);
   
   // Process data similar to dashboard
-  const periods = [...new Set(result.data.map(d => d.period))].sort();
+  // Generate all periods within the date range, not just periods with data
+  const periods = generateAllPeriods(startDate, endDate, granularity);
   const profileList = [...new Set(result.data.map(d => d.profile))].sort();
   const services = [...new Set(result.data.map(d => d.service))].sort();
   

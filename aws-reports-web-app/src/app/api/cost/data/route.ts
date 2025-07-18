@@ -10,9 +10,10 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const granularity = searchParams.get('granularity') as 'HOURLY' | 'DAILY' | 'MONTHLY' || 'MONTHLY';
-    const services = searchParams.get('services')?.split(',');
-    const excludeTaxes = searchParams.get('excludeTaxes') === 'true';
-    const excludeSupport = searchParams.get('excludeSupport') === 'true';
+    // Note: services, excludeTaxes, and excludeSupport are now handled at display level
+    // const services = searchParams.get('services')?.split(',');
+    // const excludeTaxes = searchParams.get('excludeTaxes') === 'true';
+    // const excludeSupport = searchParams.get('excludeSupport') === 'true';
 
     if (!startDate || !endDate || profiles.length === 0) {
       return NextResponse.json({
@@ -27,17 +28,16 @@ export async function GET(request: NextRequest) {
       profiles,
       startDate,
       endDate,
-      granularity,
-      services,
-      excludeTaxes,
-      excludeSupport
+      granularity
     );
 
+    // Return all data - filtering will be handled at the display level
     return NextResponse.json({
       success: true,
       data: result,
       timestamp: new Date().toISOString(),
     } as ApiResponse<{ data: CostData[]; summaries: CostSummary[] }>);
+
 
   } catch (error) {
     console.error('Cost data API error:', error);

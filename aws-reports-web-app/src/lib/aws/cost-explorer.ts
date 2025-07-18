@@ -16,9 +16,7 @@ export class CostExplorerService {
     startDate: string,
     endDate: string,
     granularity: 'HOURLY' | 'DAILY' | 'MONTHLY' = 'MONTHLY',
-    services?: string[],
-    excludeTaxes: boolean = false,
-    excludeSupport: boolean = false
+    services?: string[]
   ): Promise<CostData[]> {
     try {
       const credentials = await this.credentialsManager.getCredentialsForProfile(profile);
@@ -40,64 +38,8 @@ export class CostExplorerService {
         ],
       };
 
-      // Build filters - Note: When services are specified, we need to fetch ALL services 
-      // and then filter client-side to implement "Other" category like the Python script
-      const filters = [];
-      
-      if (excludeTaxes || excludeSupport) {
-        const excludeFilters = [];
-        
-        if (excludeTaxes) {
-          excludeFilters.push({
-            Not: {
-              Dimensions: {
-                Key: 'SERVICE',
-                Values: ['Tax'],
-                MatchOptions: ['EQUALS'],
-              },
-            },
-          });
-        }
-        
-        if (excludeSupport) {
-          // AWS Support services have various names, exclude the most common ones
-          const supportServices = [
-            'AWS Support (Business)',
-            'AWS Support (Developer)', 
-            'AWS Support (Enterprise)',
-            'AWS Support (Basic)',
-            'Support'
-          ];
-          
-          excludeFilters.push({
-            Not: {
-              Dimensions: {
-                Key: 'SERVICE',
-                Values: supportServices,
-                MatchOptions: ['EQUALS'],
-              },
-            },
-          });
-        }
-        
-        if (excludeFilters.length === 1) {
-          filters.push(excludeFilters[0]);
-        } else if (excludeFilters.length > 1) {
-          filters.push({
-            And: excludeFilters,
-          });
-        }
-      }
-      
-      if (filters.length === 1) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        input.Filter = filters[0] as any;
-      } else if (filters.length > 1) {
-        input.Filter = {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          And: filters as any,
-        };
-      }
+      // Note: We now load ALL services and let the UI handle filtering
+      // This allows for more flexible display-level filtering of taxes, support, etc.
 
       const command = new GetCostAndUsageCommand(input);
       const response = await client.send(command);
@@ -119,13 +61,7 @@ export class CostExplorerService {
               // Skip if amount is 0
               if (amount === 0) continue;
 
-              // Apply exclude filters (taxes and support)
-              if (serviceName.startsWith('AWS Support') && excludeSupport) {
-                continue;
-              }
-              if (serviceName === 'Tax' && excludeTaxes) {
-                continue;
-              }
+              // No longer filtering taxes and support at load level - handled in UI
 
               // Apply service filtering logic like the Python script
               if (showAllServices || (services && services.includes(serviceName))) {
@@ -221,9 +157,7 @@ export class CostExplorerService {
     startDate: string,
     endDate: string,
     granularity: 'HOURLY' | 'DAILY' | 'MONTHLY' = 'MONTHLY',
-    services?: string[],
-    excludeTaxes: boolean = false,
-    excludeSupport: boolean = false
+    services?: string[]
   ): Promise<{ data: CostData[]; summaries: CostSummary[] }> {
     const allData: CostData[] = [];
     const summaries: CostSummary[] = [];
@@ -232,7 +166,7 @@ export class CostExplorerService {
     for (const profile of profiles) {
       try {
         const [data, summary] = await Promise.all([
-          this.getCostData(profile, startDate, endDate, granularity, services, excludeTaxes, excludeSupport),
+          this.getCostData(profile, startDate, endDate, granularity, services),
           this.getCostSummary(profile, startDate, endDate, granularity),
         ]);
         
