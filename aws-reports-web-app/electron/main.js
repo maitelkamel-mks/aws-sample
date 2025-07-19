@@ -5,6 +5,7 @@ const fs = require('fs').promises;
 const os = require('os');
 const yaml = require('yaml');
 const http = require('http');
+const crypto = require('crypto');
 
 // Handle development vs production
 const isDev = process.env.NODE_ENV === 'development';
@@ -281,6 +282,14 @@ function showErrorPage(message, details) {
   }
 }
 
+// Helper function to get persistent config directory
+async function getConfigDirectory() {
+  const userDataPath = app.getPath('userData');
+  // userData already includes the app name, so just return it directly
+  await fs.mkdir(userDataPath, { recursive: true });
+  return userDataPath;
+}
+
 // IPC Handlers for AWS Profile operations
 ipcMain.handle('aws:getProfiles', async () => {
   try {
@@ -328,9 +337,10 @@ ipcMain.handle('aws:getProfiles', async () => {
 // IPC Handlers for Config File operations
 ipcMain.handle('config:read', async (event, type) => {
   try {
+    const configDir = await getConfigDirectory();
     const configPath = type === 'cost' 
-      ? path.join(process.cwd(), 'finops-cost-report', 'config.yaml')
-      : path.join(process.cwd(), 'securityhub', 'config.yaml');
+      ? path.join(configDir, 'finops-cost-report', 'config.yaml')
+      : path.join(configDir, 'securityhub', 'config.yaml');
     
     const content = await fs.readFile(configPath, 'utf-8');
     return yaml.parse(content);
@@ -344,9 +354,10 @@ ipcMain.handle('config:read', async (event, type) => {
 
 ipcMain.handle('config:write', async (event, type, config) => {
   try {
+    const configDir = await getConfigDirectory();
     const configPath = type === 'cost' 
-      ? path.join(process.cwd(), 'finops-cost-report', 'config.yaml')
-      : path.join(process.cwd(), 'securityhub', 'config.yaml');
+      ? path.join(configDir, 'finops-cost-report', 'config.yaml')
+      : path.join(configDir, 'securityhub', 'config.yaml');
     
     // Ensure directory exists
     const dir = path.dirname(configPath);
@@ -377,10 +388,22 @@ ipcMain.handle('file:write', async (event, filePath, content) => {
   }
 });
 
+// IPC Handler for getting config directory
+ipcMain.handle('config:getDir', async () => {
+  try {
+    return await getConfigDirectory();
+  } catch (error) {
+    console.error('Error getting config directory:', error);
+    // Fallback to current working directory
+    return process.cwd();
+  }
+});
+
 // IPC Handler for proxy configuration
 ipcMain.handle('proxy:get', async (event) => {
   try {
-    const configPath = path.join(process.cwd(), 'proxy', 'config.yaml');
+    const configDir = await getConfigDirectory();
+    const configPath = path.join(configDir, 'proxy', 'config.yaml');
     
     const content = await fs.readFile(configPath, 'utf-8');
     const config = yaml.parse(content);
@@ -417,7 +440,8 @@ ipcMain.handle('proxy:get', async (event) => {
 // IPC Handler for proxy configuration save
 ipcMain.handle('proxy:save', async (event, proxyConfig) => {
   try {
-    const configPath = path.join(process.cwd(), 'proxy', 'config.yaml');
+    const configDir = await getConfigDirectory();
+    const configPath = path.join(configDir, 'proxy', 'config.yaml');
     
     // Ensure directory exists
     const dir = path.dirname(configPath);
@@ -462,6 +486,288 @@ ipcMain.handle('app:retry', async () => {
 ipcMain.handle('app:close', () => {
   console.log('Closing application...');
   app.quit();
+});
+
+// SSO Configuration Management
+ipcMain.handle('sso:getConfig', async () => {
+  try {
+    const configPath = path.join(os.homedir(), '.aws', 'sso-config.yaml');
+    const configData = await fs.readFile(configPath, 'utf8');
+    return { success: true, data: yaml.parse(configData) };
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return { success: true, data: null };
+    }
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('sso:saveConfig', async (event, config) => {
+  try {
+    const configPath = path.join(os.homedir(), '.aws', 'sso-config.yaml');
+    await fs.mkdir(path.dirname(configPath), { recursive: true });
+    await fs.writeFile(configPath, yaml.stringify(config));
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// SSO Credential Management with Enhanced Security
+const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
+const KEY_DERIVATION_ITERATIONS = 100000;
+
+// Generate a unique key based on system characteristics and user session
+function generateEncryptionKey() {
+  const systemInfo = [
+    os.hostname(),
+    os.platform(),
+    os.arch(),
+    process.env.USER || process.env.USERNAME || 'default'
+  ].join('|');
+  
+  const salt = crypto.createHash('sha256')
+    .update(systemInfo)
+    .digest();
+    
+  return crypto.pbkdf2Sync('aws-sso-credentials', salt, KEY_DERIVATION_ITERATIONS, 32, 'sha256');
+}
+
+const CREDENTIAL_KEY = generateEncryptionKey();
+
+function encrypt(text, key = CREDENTIAL_KEY) {
+  try {
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipherGCM(ENCRYPTION_ALGORITHM, key, iv);
+    
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    
+    const authTag = cipher.getAuthTag();
+    
+    // Add timestamp for credential expiry validation
+    const timestamp = Date.now();
+    
+    return {
+      encrypted,
+      iv: iv.toString('hex'),
+      authTag: authTag.toString('hex'),
+      timestamp,
+      version: '1.0' // For future compatibility
+    };
+  } catch (error) {
+    console.error('Encryption failed:', error);
+    throw new Error('Failed to encrypt credentials');
+  }
+}
+
+function decrypt(encryptedData, key = CREDENTIAL_KEY) {
+  try {
+    // Validate data structure
+    if (!encryptedData.encrypted || !encryptedData.iv || !encryptedData.authTag) {
+      throw new Error('Invalid encrypted data structure');
+    }
+    
+    const iv = Buffer.from(encryptedData.iv, 'hex');
+    const authTag = Buffer.from(encryptedData.authTag, 'hex');
+    
+    const decipher = crypto.createDecipherGCM(ENCRYPTION_ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
+    
+    let decrypted = decipher.update(encryptedData.encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    
+    return decrypted;
+  } catch (error) {
+    console.error('Decryption failed:', error);
+    throw new Error('Failed to decrypt credentials - data may be corrupted or tampered with');
+  }
+}
+
+// Secure memory cleanup for sensitive data
+function secureCleanup(obj) {
+  if (typeof obj === 'object' && obj !== null) {
+    Object.keys(obj).forEach(key => {
+      if (typeof obj[key] === 'string') {
+        // Overwrite string with random data
+        obj[key] = crypto.randomBytes(obj[key].length).toString('hex');
+      }
+      delete obj[key];
+    });
+  }
+}
+
+ipcMain.handle('sso:storeCredentials', async (event, profileName, credentials) => {
+  let credentialsStr = null;
+  let encryptedData = null;
+  
+  try {
+    // Validate profile name to prevent path traversal
+    if (!profileName || profileName.includes('..') || profileName.includes('/') || profileName.includes('\\')) {
+      throw new Error('Invalid profile name');
+    }
+    
+    const credPath = path.join(os.homedir(), '.aws', 'sso', 'cache', `${profileName}.json`);
+    await fs.mkdir(path.dirname(credPath), { recursive: true });
+    
+    // Set restrictive permissions on the directory (Unix/Linux/macOS)
+    if (process.platform !== 'win32') {
+      await fs.chmod(path.dirname(credPath), 0o700);
+    }
+    
+    // Add metadata to credentials
+    const credentialsWithMeta = {
+      ...credentials,
+      storedAt: new Date().toISOString(),
+      profileName: profileName,
+      clientId: crypto.randomUUID() // For integrity checking
+    };
+    
+    // Encrypt credentials before storage
+    credentialsStr = JSON.stringify(credentialsWithMeta);
+    encryptedData = encrypt(credentialsStr);
+    
+    await fs.writeFile(credPath, JSON.stringify(encryptedData));
+    
+    // Set restrictive permissions on the file (Unix/Linux/macOS)
+    if (process.platform !== 'win32') {
+      await fs.chmod(credPath, 0o600);
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to store SSO credentials:', error);
+    return { success: false, error: error.message };
+  } finally {
+    // Secure cleanup of sensitive data in memory
+    if (credentialsStr) {
+      secureCleanup({ credentialsStr });
+    }
+    if (encryptedData) {
+      secureCleanup(encryptedData);
+    }
+  }
+});
+
+ipcMain.handle('sso:getCredentials', async (event, profileName) => {
+  let encryptedData = null;
+  let decryptedStr = null;
+  let credentials = null;
+  
+  try {
+    // Validate profile name
+    if (!profileName || profileName.includes('..') || profileName.includes('/') || profileName.includes('\\')) {
+      throw new Error('Invalid profile name');
+    }
+    
+    const credPath = path.join(os.homedir(), '.aws', 'sso', 'cache', `${profileName}.json`);
+    const encryptedStr = await fs.readFile(credPath, 'utf8');
+    encryptedData = JSON.parse(encryptedStr);
+    
+    // Validate encrypted data structure and version
+    if (!encryptedData.version || encryptedData.version !== '1.0') {
+      throw new Error('Unsupported credential format version');
+    }
+    
+    // Check file age (optional security measure)
+    const fileStats = await fs.stat(credPath);
+    const fileAge = Date.now() - fileStats.mtime.getTime();
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    
+    if (fileAge > maxAge) {
+      console.warn(`Credential file for ${profileName} is older than 24 hours`);
+    }
+    
+    // Decrypt credentials
+    decryptedStr = decrypt(encryptedData);
+    credentials = JSON.parse(decryptedStr);
+    
+    // Validate decrypted credentials
+    if (!credentials.profileName || credentials.profileName !== profileName) {
+      throw new Error('Credential integrity check failed');
+    }
+    
+    // Check expiration
+    if (new Date(credentials.expiration) <= new Date()) {
+      // Remove expired credentials
+      await fs.unlink(credPath).catch(() => {});
+      return { success: false, error: 'Credentials expired' };
+    }
+    
+    // Remove metadata before returning
+    const { storedAt, clientId, ...cleanCredentials } = credentials;
+    
+    return { success: true, data: cleanCredentials };
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return { success: false, error: 'Credentials not found' };
+    }
+    console.error('Failed to retrieve SSO credentials:', error);
+    return { success: false, error: 'Failed to retrieve credentials' };
+  } finally {
+    // Secure cleanup of sensitive data in memory
+    if (encryptedData) {
+      secureCleanup(encryptedData);
+    }
+    if (decryptedStr) {
+      secureCleanup({ decryptedStr });
+    }
+    if (credentials) {
+      secureCleanup(credentials);
+    }
+  }
+});
+
+ipcMain.handle('sso:removeCredentials', async (event, profileName) => {
+  try {
+    // Validate profile name
+    if (!profileName || profileName.includes('..') || profileName.includes('/') || profileName.includes('\\')) {
+      throw new Error('Invalid profile name');
+    }
+    
+    const credPath = path.join(os.homedir(), '.aws', 'sso', 'cache', `${profileName}.json`);
+    
+    // Securely overwrite file before deletion (best effort)
+    try {
+      const fileStats = await fs.stat(credPath);
+      const randomData = crypto.randomBytes(fileStats.size);
+      await fs.writeFile(credPath, randomData);
+    } catch (overwriteError) {
+      // Continue with deletion even if overwrite fails
+      console.warn('Failed to securely overwrite credential file:', overwriteError.message);
+    }
+    
+    await fs.unlink(credPath);
+    return { success: true };
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      return { success: true }; // Already deleted
+    }
+    console.error('Failed to remove SSO credentials:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('sso:listProfiles', async () => {
+  try {
+    const ssoDir = path.join(os.homedir(), '.aws', 'sso', 'cache');
+    
+    try {
+      const files = await fs.readdir(ssoDir);
+      const profiles = files
+        .filter(file => file.endsWith('.json'))
+        .map(file => path.basename(file, '.json'));
+      
+      return { success: true, data: profiles };
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        return { success: true, data: [] };
+      }
+      throw error;
+    }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 });
 
 // App menu

@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Config file operations
   readConfig: (type) => ipcRenderer.invoke('config:read', type),
   writeConfig: (type, config) => ipcRenderer.invoke('config:write', type, config),
+  getConfigDir: () => ipcRenderer.invoke('config:getDir'),
   
   // Proxy operations
   getProxyConfig: () => ipcRenderer.invoke('proxy:get'),
@@ -27,5 +28,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Application control
   retryApplication: () => ipcRenderer.invoke('app:retry'),
-  closeApplication: () => ipcRenderer.invoke('app:close')
+  closeApplication: () => ipcRenderer.invoke('app:close'),
+  
+  // SSO operations
+  sso: {
+    getConfig: () => ipcRenderer.invoke('sso:getConfig'),
+    saveConfig: (config) => ipcRenderer.invoke('sso:saveConfig', config),
+    storeCredentials: (profileName, credentials) => 
+      ipcRenderer.invoke('sso:storeCredentials', profileName, credentials),
+    getCredentials: (profileName) => 
+      ipcRenderer.invoke('sso:getCredentials', profileName),
+    removeCredentials: (profileName) => 
+      ipcRenderer.invoke('sso:removeCredentials', profileName),
+    listStoredProfiles: () => ipcRenderer.invoke('sso:listProfiles')
+  }
 });

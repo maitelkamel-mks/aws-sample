@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
-import { fromIni } from '@aws-sdk/credential-providers';
-import { createAWSClientConfig } from '@/lib/aws/client-config';
+import { AWSCredentialsManager } from '@/lib/aws/credentials';
 import { ApiResponse } from '@/lib/types';
 
 interface ConnectivityResult {
@@ -11,11 +9,17 @@ interface ConnectivityResult {
   arn?: string;
   userId?: string;
   error?: string;
+  type?: 'cli' | 'sso';
+}
+
+interface TestConnectivityRequest {
+  profiles: string[];
+  profileTypes?: Record<string, 'cli' | 'sso'>; // Optional type hints for profiles
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { profiles } = await request.json();
+    const { profiles, profileTypes }: TestConnectivityRequest = await request.json();
     
     if (!profiles || !Array.isArray(profiles)) {
       return NextResponse.json({
@@ -25,26 +29,25 @@ export async function POST(request: NextRequest) {
       } as ApiResponse, { status: 400 });
     }
 
+    const credentialsManager = AWSCredentialsManager.getInstance();
     const results: ConnectivityResult[] = [];
 
     // Test connectivity for each profile
     for (const profile of profiles) {
       try {
-        // Create STS client with the specific profile
-        const credentials = fromIni({ profile });
-        const clientConfig = await createAWSClientConfig('us-east-1', credentials); // STS is available in all regions, using us-east-1 as default
-        const stsClient = new STSClient(clientConfig);
-
-        // Try to get caller identity to test connectivity
-        const command = new GetCallerIdentityCommand({});
-        const response = await stsClient.send(command);
-
+        const profileType = profileTypes?.[profile];
+        
+        // Use the enhanced credentials manager for validation
+        const validationResult = await credentialsManager.validateAnyProfile(profile, profileType);
+        
         results.push({
           profile,
-          connected: true,
-          account: response.Account,
-          arn: response.Arn,
-          userId: response.UserId,
+          connected: validationResult.success,
+          account: validationResult.accountId,
+          arn: validationResult.arn,
+          userId: validationResult.userId,
+          error: validationResult.error,
+          type: profileType || (credentialsManager.isSSOProfile(profile) ? 'sso' : 'cli')
         });
       } catch (error) {
         console.error(`Connectivity test failed for profile ${profile}:`, error);
@@ -58,6 +61,7 @@ export async function POST(request: NextRequest) {
           profile,
           connected: false,
           error: errorMessage,
+          type: profileTypes?.[profile] || 'cli'
         });
       }
     }

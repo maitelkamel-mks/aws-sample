@@ -375,7 +375,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             label: function (context: any) {
               return `${context.dataset.label || context.label}: $${context.raw.toLocaleString()}`;
             },
@@ -389,7 +389,7 @@ export default function CostDashboard() {
         y: {
           stacked: true,
           ticks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             callback: function (value: any) {
               return '$' + value.toLocaleString();
             },
@@ -407,7 +407,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -473,7 +473,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             label: function (context: any) {
               return `${context.dataset.label || context.label}: $${context.raw.toLocaleString()}`;
             },
@@ -487,7 +487,7 @@ export default function CostDashboard() {
         y: {
           stacked: true,
           ticks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             callback: function (value: any) {
               return '$' + value.toLocaleString();
             },
@@ -505,7 +505,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -571,7 +571,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             label: function (context: any) {
               return `${context.dataset.label || context.label}: $${context.raw.toLocaleString()}`;
             },
@@ -585,7 +585,7 @@ export default function CostDashboard() {
         y: {
           stacked: true,
           ticks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             callback: function (value: any) {
               return '$' + value.toLocaleString();
             },
@@ -603,7 +603,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);

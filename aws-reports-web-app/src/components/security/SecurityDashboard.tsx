@@ -509,7 +509,7 @@ export default function SecurityDashboard() {
         },
         tooltip: {
           callbacks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             label: function (context: any) {
               return `${context.dataset.label}: ${context.raw}`;
             },
@@ -523,7 +523,7 @@ export default function SecurityDashboard() {
         y: {
           stacked: true,
           ticks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             callback: function (value: any) {
               return value;
             },
@@ -541,7 +541,7 @@ export default function SecurityDashboard() {
         },
         tooltip: {
           callbacks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -617,7 +617,7 @@ export default function SecurityDashboard() {
         },
         tooltip: {
           callbacks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             label: function (context: any) {
               return `${context.dataset.label}: ${context.raw}`;
             },
@@ -631,7 +631,7 @@ export default function SecurityDashboard() {
         y: {
           stacked: true,
           ticks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             callback: function (value: any) {
               return value;
             },
@@ -649,7 +649,7 @@ export default function SecurityDashboard() {
         },
         tooltip: {
           callbacks: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -873,7 +873,7 @@ export default function SecurityDashboard() {
 
               severities.forEach(severity => {
                 const count = regionFindings.filter(f => f.severity === severity).length;
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                 
                 (row as any)[severity] = count;
                 totalCount += count;
               });
@@ -890,7 +890,7 @@ export default function SecurityDashboard() {
 
             severities.forEach(severity => {
               const severityTotal = rows.reduce((sum, row) => sum + (Number(row[severity as keyof SecurityTableRow]) || 0), 0);
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+               
               (totalRow as any)[severity] = severityTotal;
               grandTotal += severityTotal;
             });
@@ -910,7 +910,7 @@ export default function SecurityDashboard() {
 
           severities.forEach(severity => {
             const count = profileFindings.filter(f => f.severity === severity).length;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             (row as any)[severity] = count;
             totalCount += count;
           });
@@ -926,7 +926,7 @@ export default function SecurityDashboard() {
 
           severities.forEach(severity => {
             const severityTotal = globalSummaryData.reduce((sum, row) => sum + (Number(row[severity as keyof SecurityTableRow]) || 0), 0);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             (globalTotalRow as any)[severity] = severityTotal;
             grandTotal += severityTotal;
           });

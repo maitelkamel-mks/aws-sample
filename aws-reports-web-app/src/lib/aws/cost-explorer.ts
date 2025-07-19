@@ -16,10 +16,12 @@ export class CostExplorerService {
     startDate: string,
     endDate: string,
     granularity: 'HOURLY' | 'DAILY' | 'MONTHLY' = 'MONTHLY',
-    services?: string[]
+    services?: string[],
+    profileType?: 'cli' | 'sso'
   ): Promise<CostData[]> {
     try {
-      const credentials = await this.credentialsManager.getCredentialsForProfile(profile);
+      // Use the enhanced credentials manager that supports both CLI and SSO
+      const credentials = await this.credentialsManager.getCredentialsForAnyProfile(profile, profileType);
       const clientConfig = await createAWSClientConfig('us-east-1', credentials); // Cost Explorer is only available in us-east-1
       const client = new CostExplorerClient(clientConfig);
 

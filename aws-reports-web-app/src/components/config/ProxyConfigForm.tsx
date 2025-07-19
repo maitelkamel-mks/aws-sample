@@ -178,21 +178,9 @@ export default function ProxyConfigForm({ onSave }: ProxyConfigFormProps) {
           </Space>
         }
         description={
-          <>
-            {proxyStatus.configured && proxyStatus.url && (
-              <div>Current proxy: {proxyStatus.url}</div>
-            )}
-            {envDetection?.detected && (
-              <div style={{ marginTop: 8 }}>
-                <Text type="secondary">Environment variables detected:</Text>
-                <ul style={{ margin: '4px 0' }}>
-                  {envDetection.httpProxy && <li>HTTP_PROXY: {envDetection.httpProxy}</li>}
-                  {envDetection.httpsProxy && <li>HTTPS_PROXY: {envDetection.httpsProxy}</li>}
-                  {envDetection.noProxy && <li>NO_PROXY: {envDetection.noProxy}</li>}
-                </ul>
-              </div>
-            )}
-          </>
+          proxyStatus.configured && proxyStatus.url && (
+            <div>Current active proxy: <code>{proxyStatus.url}</code></div>
+          )
         }
         style={{ marginBottom: 16 }}
       />
@@ -240,10 +228,53 @@ export default function ProxyConfigForm({ onSave }: ProxyConfigFormProps) {
       </Title>
       
       <Text type="secondary">
-        Configure proxy settings for all AWS API calls. Settings here will take priority over environment variables.
+        Configure proxy settings for all AWS API calls. You can either configure proxy settings here or use environment variables.
       </Text>
 
       <Divider />
+
+      {/* Environment Variables Information */}
+      <Alert
+        type="info"
+        showIcon
+        message="Environment Variable Support"
+        description={
+          <div>
+            <p>This application supports standard proxy environment variables:</p>
+            <ul style={{ marginBottom: 8 }}>
+              <li><code>HTTP_PROXY</code> - Proxy for HTTP requests</li>
+              <li><code>HTTPS_PROXY</code> - Proxy for HTTPS requests</li>
+              <li><code>NO_PROXY</code> - Comma-separated list of domains to bypass proxy</li>
+            </ul>
+            <Text type="secondary">
+              Manual configuration below will override these environment variables when enabled.
+            </Text>
+            {envDetection && (
+              <div style={{ marginTop: 12 }}>
+                <Text strong>Current Environment Variables:</Text>
+                <div style={{ marginTop: 4, fontFamily: 'monospace', fontSize: '12px', backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px' }}>
+                  {envDetection.httpProxy ? (
+                    <div style={{ marginBottom: '4px' }}><strong>HTTP_PROXY</strong>: {envDetection.httpProxy}</div>
+                  ) : (
+                    <div style={{ marginBottom: '4px' }}><strong>HTTP_PROXY</strong>: <Text type="secondary">not set</Text></div>
+                  )}
+                  {envDetection.httpsProxy ? (
+                    <div style={{ marginBottom: '4px' }}><strong>HTTPS_PROXY</strong>: {envDetection.httpsProxy}</div>
+                  ) : (
+                    <div style={{ marginBottom: '4px' }}><strong>HTTPS_PROXY</strong>: <Text type="secondary">not set</Text></div>
+                  )}
+                  {envDetection.noProxy ? (
+                    <div><strong>NO_PROXY</strong>: {envDetection.noProxy}</div>
+                  ) : (
+                    <div><strong>NO_PROXY</strong>: <Text type="secondary">not set</Text></div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        }
+        style={{ marginBottom: 16 }}
+      />
 
       {renderStatusInfo()}
       {renderTestResult()}

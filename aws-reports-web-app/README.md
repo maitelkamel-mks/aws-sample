@@ -1,28 +1,39 @@
 # AWS Reports Web Application
 
-A modern Next.js web application for AWS cost reporting and Security Hub dashboard functionality, replacing the existing Python scripts with a unified, full-stack TypeScript solution.
+A modern Next.js web application for AWS cost reporting and Security Hub dashboard functionality with enterprise SSO integration, providing a unified, full-stack TypeScript solution for AWS management and reporting.
 
 ## Features
 
-- **Cost Reporting**: Interactive AWS cost analysis with Cost Explorer API integration
-  - Service filtering with "Other" category aggregation (like finops-cost-report Python script)
-  - Sortable tables with customizable pagination (10, 20, 50, 100 items per page)
-  - Fixed total rows in table footers for easy reference
-  - Visual charts and graphs for cost analysis
-  - Multiple view modes: Account totals, Service totals, Individual account breakdown
-  - Granularity options: Hourly, Daily, Monthly, Annual
+- **Comprehensive Cost Reporting**: AWS cost analysis with Cost Explorer API integration
+  - **Service Filtering**: 60+ predefined AWS services with searchable multi-select dropdown
+  - **Flexible Service Selection**: Show all services or filter to specific services of interest
+  - **Multi-View Analysis**: Switch between Account totals, Service totals, and Individual account breakdowns
+  - **Advanced Data Tables**: Sortable tables with horizontal scrolling and fixed columns
+  - **Summary Rows**: Fixed total rows in table footers showing aggregate costs
+  - **Interactive Visualizations**: Chart.js integration with bar charts and pie charts
+  - **Multiple Time Granularities**: Hourly, Daily, Monthly, and Annual reporting options
+  - **Multi-Format Export**: CSV, JSON, PDF, XLSX, and HTML export capabilities
+  - **Client-Side Filtering**: Real-time tax/support exclusion without re-fetching data
+  - **SSO Profile Support**: Full integration with enterprise SSO-managed AWS accounts
 - **Security Dashboard**: Security Hub findings aggregation and analysis
   - Advanced table sorting with multiple severity levels
   - Profile-specific findings tracking with accurate mapping
   - Enhanced pagination controls with quick jumper and size changer
   - Real-time filtering by severity, workflow state, and compliance status
+- **Enterprise SSO Integration**: Complete single sign-on authentication system
+  - **SSO Login & Role Discovery**: One-click login to discover available AWS roles
+  - **Interactive Role Selection**: Modal interface for selecting and managing AWS roles
+  - **Automatic Profile Configuration**: Auto-save selected roles to persistent configuration
+  - **Multi-Provider Support**: SoftID, LDAP, and OAuth2 authentication types
+  - **Security Features**: Token encryption, session binding, and audit logging
+  - **Proxy Support**: Enterprise proxy configuration for SSO connections
 - **Multi-Account Support**: Manage multiple AWS profiles and accounts
 - **HTTP Proxy Support**: Automatic proxy configuration when HTTP_PROXY environment variables are set
 - **Real-time Filtering**: Interactive filtering and search capabilities
 - **Data Export**: Export reports in HTML, PDF, and Excel formats
 - **Cross-Platform Desktop App**: Electron-based desktop application for macOS, Windows, and Linux
 - **Responsive Design**: Mobile-friendly interface using Ant Design
-- **Configuration Management**: Web-based configuration for AWS profiles and settings
+- **Configuration Management**: Web-based unified configuration for all AWS and SSO settings
 - **Error Handling**: User-friendly error messages with troubleshooting guidance
 
 ## Prerequisites
@@ -97,30 +108,64 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
    - Go to Configuration → Cost Configuration tab
    - Set up report preferences, profiles, service filters, and date ranges
    - Select specific AWS services or leave empty to show all services
-   - Configuration will be saved to `finops-cost-report/config.yaml`
+   - Configuration will be saved to the unified `config.yaml` file
 
 3. **Configure Security Hub:**
    - Go to Configuration → Security Configuration tab
    - Select profiles and home region for Security Hub
-   - Configuration will be saved to `securityhub/config.yaml`
+   - Configuration will be saved to the unified `config.yaml` file
+
+4. **Configure Proxy (Optional):**
+   - Go to Configuration → Proxy Settings tab
+   - Enable proxy and configure URL, credentials, and exclusions
+   - Alternatively, use environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`)
+
+5. **Configure SSO (Enterprise):**
+   - Go to Configuration → SSO Configuration tab
+   - Configure your SSO provider settings (start URL, provider name, authentication type)
+   - Click "SSO Login & Get Roles" to authenticate and discover available AWS roles
+   - Select the AWS roles you want to add from the interactive modal
+   - Roles are automatically saved to your configuration for future use
+   - Configure security settings (SSL verification, token encryption, session binding)
+   - Set up enterprise proxy settings if required
 
 ### Generating Reports
 
 #### Cost Reports
 1. Navigate to "Cost Reports" page
-2. Select AWS profiles, date range, and services (optional)
-3. Choose granularity (Hourly/Daily/Monthly/Annual)
-4. **Service Filtering:**
-   - Leave services empty to show all AWS services
-   - Select specific services to show only those + "Other" category
-   - "Other" aggregates costs from all unselected services
-5. Click "Generate Report"
-6. **Enhanced Table Features:**
-   - Sort by service name, account name, or total cost (descending by default)
-   - Customize page size and navigate through large datasets
-   - View multiple perspectives: Account totals, Service totals, Individual account breakdown
-   - Fixed total rows show aggregate costs at the bottom of each table
-7. Export data as HTML, PDF, or Excel formats
+2. **Profile Selection:** Choose from configured AWS profiles (including SSO-managed profiles)
+3. **Date Range:** Select start and end dates using the date picker
+4. **Granularity Options:** Choose data aggregation level:
+   - **Hourly**: Detailed hourly cost breakdown
+   - **Daily**: Day-by-day cost analysis (recommended for most use cases)
+   - **Monthly**: Monthly cost summaries
+   - **Annual**: Client-side aggregation of monthly data into yearly overview
+5. **Service Filtering:**
+   - **Searchable Dropdown**: Select from 60+ predefined AWS services with search functionality
+   - **Multi-Select**: Choose multiple services for focused analysis
+   - **Selective Display**: Only selected services appear in reports and visualizations
+   - **All Services Option**: Leave services empty to display all AWS service costs
+6. **Display Options:**
+   - **Tax Exclusion**: Toggle to exclude/include tax charges in reports
+   - **Support Exclusion**: Toggle to exclude/include AWS support costs
+   - **Real-Time Filtering**: Changes apply instantly without re-fetching data
+7. Click "Fetch Cost Data" to generate comprehensive cost analysis
+8. **Multi-View Analysis:**
+   - **Account Totals Tab**: Cost per account across time periods
+   - **Service Totals Tab**: Cost per service across all accounts
+   - **Individual Profile Tabs**: Per-account service breakdown with dedicated tabs
+9. **Table Features:**
+   - **No Pagination**: Complete data displayed with horizontal scrolling
+   - **Column Sorting**: Click any column header to sort (total costs default to descending)
+   - **Fixed Columns**: Service/Account names fixed on left, totals on right
+   - **Summary Rows**: Color-coded total rows always visible at bottom
+10. **Visualizations:** Interactive Chart.js charts with bar and pie chart options for each view
+11. **Export Options:** Multiple formats available via dropdown:
+    - **CSV**: Raw data export
+    - **JSON**: Structured data export
+    - **PDF**: Professional reports with charts and tables
+    - **XLSX**: Excel workbooks with multiple sheets
+    - **HTML**: Self-contained interactive reports
 
 #### Security Dashboard
 1. Navigate to "Security Hub" page
@@ -154,12 +199,101 @@ src/
 
 ## Configuration Files
 
-The application creates and manages YAML configuration files:
+The application uses a **unified configuration system** that automatically migrates and consolidates all settings into a single file:
 
-- `finops-cost-report/config.yaml` - Cost reporting configuration
-- `securityhub/config.yaml` - Security Hub configuration
+### Unified Configuration (Recommended)
+- **Desktop App**: `{userData}/config.yaml` - All application settings in one file
+- **Web App**: `config.yaml` - Single configuration file for all settings
 
-These files are automatically created when you save configurations through the web interface.
+### Configuration Structure
+The unified configuration file contains all application settings:
+
+```yaml
+version: "1.0"
+lastModified: "2024-01-15T10:30:00.000Z"
+
+# Cost reporting configuration
+cost:
+  profiles: ["profile1", "profile2"]
+  services: ["EC2", "S3", "RDS"]
+  start_date: "2024-01-01"
+  end_date: "2024-01-31"
+  period: "daily"
+  exclude_taxes: false
+  exclude_support: false
+
+# Security Hub configuration
+security:
+  profiles: ["profile1", "profile2"]
+  home_region: "us-east-1"
+
+# Proxy configuration
+proxy:
+  enabled: true
+  url: "http://proxy.company.com:8080"
+  username: "proxy-user"
+  password: "proxy-pass"
+  no_proxy: ["localhost", "*.internal.com"]
+
+# SSO configuration (Enterprise)
+sso:
+  enabled: true
+  providerName: "Corporate SSO"
+  startUrl: "https://websso-company.com/saml/login"
+  authenticationType: "SoftID"  # Options: SoftID, LDAP, OAuth2
+  sessionDuration: 36000
+  region: "eu-west-1"
+  samlDestination: "urn:amazon:webservices"
+  
+  # Provider-specific settings
+  providerSettings:
+    realm: "multiauth"
+    module: "SoftID"
+    gotoUrl: "https://websso-company.com/gardianwebsso/saml2/jsp/idpSSOInit.jsp"
+    metaAlias: "/multiauth/idp6-20261219"
+  
+  # Enterprise proxy configuration for SSO
+  proxy:
+    enabled: true
+    url: "https://proxy.company.com:3131"
+  
+  # Security settings
+  security:
+    sslVerification: true
+    tokenEncryption: true
+    sessionBinding: true
+    auditLogging: true
+  
+  # AWS role profiles (auto-discovered via SSO login)
+  profiles:
+    - name: "prod-account-admin"
+      accountId: "123456789012"
+      roleName: "AdminRole"
+      roleArn: "arn:aws:iam::123456789012:role/AdminRole"
+      principalArn: "arn:aws:iam::123456789012:saml-provider/Corporate"
+      description: "Production Account - Admin Role"
+      region: "eu-west-1"
+      type: "sso"
+    - name: "dev-account-developer"
+      accountId: "987654321098"
+      roleName: "DeveloperRole"
+      roleArn: "arn:aws:iam::987654321098:role/DeveloperRole"
+      principalArn: "arn:aws:iam::987654321098:saml-provider/Corporate"
+      description: "Development Account - Developer Role"
+      region: "eu-west-1"
+      type: "sso"
+```
+
+
+### Configuration Persistence
+- **Desktop Application**: Configurations are stored in `{userData}/config.yaml` and persist across app updates and reinstalls
+- **Web Application**: Configurations are stored in the working directory as `config.yaml`
+- **Environment Variables**: Proxy settings can also be configured via `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables
+
+### Configuration Locations by Platform
+- **macOS**: `~/Library/Application Support/aws-reports-web-app/config.yaml`
+- **Windows**: `%APPDATA%\aws-reports-web-app\config.yaml`
+- **Linux**: `~/.config/aws-reports-web-app/config.yaml`
 
 ## API Endpoints
 
@@ -259,8 +393,11 @@ The application can be deployed as:
    - Check that the selected profiles have access to Security Hub
 
 4. **Configuration save errors**
+   - The application uses a unified configuration file (`config.yaml`)
    - The application automatically creates necessary directories
-   - Ensure the application has write permissions to the project directory
+   - Ensure the application has write permissions to the configuration directory
+   - **Desktop App**: Configurations persist in user data directory across updates
+   - **Web App**: Configurations are stored in the working directory
 
 5. **Ant Design message warnings**
    - The application properly uses Ant Design's App component for message context
@@ -302,13 +439,21 @@ The application can be deployed as:
 - `securityhub:DescribeHub`
 - `securityhub:ListMembers`
 
-## Migration from Python Scripts
+## Key Features & Improvements
 
-This application replaces the existing Python scripts:
-- `aws_cost_report.py` → Cost Reports dashboard
-- `securityhub_dashboard.py` → Security Hub dashboard
+### Unified Configuration System
+- **Single Configuration File**: All application settings in one unified `config.yaml` file
+- **Comprehensive Coverage**: Includes cost, security, proxy, and SSO configurations in one place
+- **Persistent Storage**: Desktop application configurations survive app updates and reinstalls
+- **Environment Integration**: Supports both file-based configuration and environment variables
+- **Auto-Discovery**: SSO login automatically discovers and configures AWS roles
 
-Configuration files are compatible with the existing YAML format.
+### Enterprise-Ready SSO Integration
+- **One-Click Authentication**: Login and discover available AWS roles with a single button
+- **Interactive Role Management**: Select and configure multiple AWS roles through intuitive UI
+- **Automatic Configuration**: Selected roles are immediately saved to persistent configuration
+- **Multi-Provider Support**: Compatible with SoftID, LDAP, and OAuth2 authentication systems
+- **Enterprise Security**: Built-in encryption, session binding, and comprehensive audit logging
 
 ## Support
 

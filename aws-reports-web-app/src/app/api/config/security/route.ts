@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const configManager = ConfigManager.getInstance();
     
-    if (!configManager.configExists('security')) {
+    if (!(await configManager.configExists('security'))) {
       return NextResponse.json({
         success: false,
         error: 'Security configuration file not found',
