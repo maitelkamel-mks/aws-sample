@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const configManager = ConfigManager.getInstance();
     
-    if (!configManager.configExists('cost')) {
+    if (!(await configManager.configExists('cost'))) {
       return NextResponse.json({
         success: false,
         error: 'Cost configuration file not found',

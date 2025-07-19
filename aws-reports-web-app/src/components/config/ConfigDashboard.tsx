@@ -5,6 +5,7 @@ import CostConfigForm from './CostConfigForm';
 import SecurityConfigForm from './SecurityConfigForm';
 import ProfilesDisplay from './ProfilesDisplay';
 import ProxyConfigForm from './ProxyConfigForm';
+import SSOConfigForm from './SSOConfigForm';
 
 const { Title } = Typography;
 
@@ -17,16 +18,21 @@ export default function ConfigDashboard() {
     },
     {
       key: '2',
+      label: 'SSO Configuration',
+      children: <SSOConfigForm />,
+    },
+    {
+      key: '3',
       label: 'Cost Configuration',
       children: <CostConfigForm />,
     },
     {
-      key: '3',
+      key: '4',
       label: 'Security Configuration',
       children: <SecurityConfigForm />,
     },
     {
-      key: '4',
+      key: '5',
       label: 'Proxy Settings',
       children: <ProxyConfigForm />,
     },
@@ -35,14 +41,6 @@ export default function ConfigDashboard() {
   return (
     <div>
       <Title level={2}>Configuration</Title>
-      
-      <Alert
-        message="Default Report Configuration"
-        description="Manage AWS profiles, proxy settings, and configure default settings for report generation. These configurations will be saved as defaults and can be loaded when generating cost and security reports."
-        type="info"
-        showIcon
-        style={{ marginBottom: 24 }}
-      />
 
       <Card>
         <Tabs defaultActiveKey="1" items={items} />

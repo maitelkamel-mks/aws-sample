@@ -397,7 +397,7 @@ function createDetailedFindingsPage(
   if (findings.length > 50) {
     doc.setFontSize(10);
     doc.setTextColor(100, 100, 100);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const finalY = (doc as any).lastAutoTable.finalY + 10;
     doc.text(`Note: Showing first 50 of ${findings.length} total findings`, 20, finalY);
   }

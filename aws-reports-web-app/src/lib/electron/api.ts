@@ -47,6 +47,15 @@ declare global {
       platform: string;
       isElectron: boolean;
       isDevelopment: boolean;
+      getConfigDir?: () => Promise<string>;
+      sso?: {
+        storeCredentials: (profileName: string, credentials: any) => Promise<{ success: boolean; error?: string }>;
+        getCredentials: (profileName: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+        removeCredentials: (profileName: string) => Promise<{ success: boolean; error?: string }>;
+        listStoredProfiles: () => Promise<{ success: boolean; data?: string[]; error?: string }>;
+        cleanupExpiredCredentials: () => Promise<{ success: boolean; error?: string }>;
+        clearAllCredentials: () => Promise<{ success: boolean; error?: string }>;
+      };
     };
   }
 }

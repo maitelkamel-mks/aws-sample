@@ -19,10 +19,12 @@ export class SecurityHubService {
       workflowState?: string[];
       complianceStatus?: string[];
       productName?: string[];
-    }
+    },
+    profileType?: 'cli' | 'sso'
   ): Promise<SecurityFinding[]> {
     try {
-      const credentials = await this.credentialsManager.getCredentialsForProfile(profile);
+      // Use the enhanced credentials manager that supports both CLI and SSO
+      const credentials = await this.credentialsManager.getCredentialsForAnyProfile(profile, profileType);
       const clientConfig = await createAWSClientConfig(region, credentials);
       const client = new SecurityHubClient(clientConfig);
 
@@ -96,12 +98,12 @@ export class SecurityHubService {
               
               // Extract resource name based on resource type
               if (resource.Details) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                 
                 const details = resource.Details as any;
                 
                 // Try to extract name from various AWS resource types
                 if (details.AwsEc2Instance?.InstanceId) {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                   
                   resourceName = details.AwsEc2Instance.Tags?.find((tag: any) => tag.Key === 'Name')?.Value || details.AwsEc2Instance.InstanceId;
                 } else if (details.AwsS3Bucket?.Name) {
                   resourceName = details.AwsS3Bucket.Name;
