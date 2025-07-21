@@ -66,6 +66,12 @@ export default function CostDashboard() {
   const [includeSupport, setIncludeSupport] = useState(true);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [exportLoading, setExportLoading] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  // Captured parameters at button click time - these are used for the actual query
+  const [capturedProfiles, setCapturedProfiles] = useState<string[]>([]);
+  const [capturedDateRange, setCapturedDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([dayjs().subtract(1, 'month'), dayjs()]);
+  const [capturedGranularity, setCapturedGranularity] = useState<'HOURLY' | 'DAILY' | 'MONTHLY' | 'ANNUAL'>('MONTHLY');
 
   // Chart colors
   const chartColors = [
@@ -117,24 +123,24 @@ export default function CostDashboard() {
   }, [costConfig, useConfigDefaults]);
 
   // Fetch raw cost data without any filtering
-  const { data: rawCostData, isLoading: costLoading, error: costError, refetch } = useQuery({
-    queryKey: ['cost-data-raw', selectedProfiles, dateRange, granularity],
+  const { data: rawCostData, isLoading: costLoading, error: costError } = useQuery({
+    queryKey: ['cost-data-raw', refreshTrigger],
     queryFn: async () => {
-      if (selectedProfiles.length === 0) return null;
+      if (capturedProfiles.length === 0) return null;
 
       // For annual granularity, fetch monthly data and aggregate
-      const apiGranularity = granularity === 'ANNUAL' ? 'MONTHLY' : granularity;
+      const apiGranularity = capturedGranularity === 'ANNUAL' ? 'MONTHLY' : capturedGranularity;
 
       // Format dates based on granularity - hourly requires specific format
-      const startDate = granularity === 'HOURLY'
-        ? dateRange[0].startOf('day').format('YYYY-MM-DD[T]00:00:00[Z]')
-        : dateRange[0].format('YYYY-MM-DD');
-      const endDate = granularity === 'HOURLY'
-        ? dateRange[1].endOf('day').format('YYYY-MM-DD[T]23:59:59[Z]')
-        : dateRange[1].format('YYYY-MM-DD');
+      const startDate = capturedGranularity === 'HOURLY'
+        ? capturedDateRange[0].startOf('day').format('YYYY-MM-DD[T]00:00:00[Z]')
+        : capturedDateRange[0].format('YYYY-MM-DD');
+      const endDate = capturedGranularity === 'HOURLY'
+        ? capturedDateRange[1].endOf('day').format('YYYY-MM-DD[T]23:59:59[Z]')
+        : capturedDateRange[1].format('YYYY-MM-DD');
 
       const params = new URLSearchParams({
-        profiles: selectedProfiles.join(','),
+        profiles: capturedProfiles.join(','),
         startDate,
         endDate,
         granularity: apiGranularity,
@@ -152,7 +158,7 @@ export default function CostDashboard() {
       const data = result.data as CostResponse;
 
       // If annual granularity, aggregate monthly data into years
-      if (granularity === 'ANNUAL' && data) {
+      if (capturedGranularity === 'ANNUAL' && data) {
         const aggregatedData: CostData[] = [];
         const yearMap: Record<string, Record<string, Record<string, number>>> = {};
 
@@ -188,7 +194,10 @@ export default function CostDashboard() {
 
       return data;
     },
-    enabled: false,
+    enabled: refreshTrigger > 0,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
   });
 
   // Apply filters dynamically to the raw data
@@ -375,7 +384,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
-             
+
             label: function (context: any) {
               return `${context.dataset.label || context.label}: $${context.raw.toLocaleString()}`;
             },
@@ -389,7 +398,7 @@ export default function CostDashboard() {
         y: {
           stacked: true,
           ticks: {
-             
+
             callback: function (value: any) {
               return '$' + value.toLocaleString();
             },
@@ -407,7 +416,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
-             
+
             label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -473,7 +482,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
-             
+
             label: function (context: any) {
               return `${context.dataset.label || context.label}: $${context.raw.toLocaleString()}`;
             },
@@ -487,7 +496,7 @@ export default function CostDashboard() {
         y: {
           stacked: true,
           ticks: {
-             
+
             callback: function (value: any) {
               return '$' + value.toLocaleString();
             },
@@ -505,7 +514,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
-             
+
             label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -571,7 +580,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
-             
+
             label: function (context: any) {
               return `${context.dataset.label || context.label}: $${context.raw.toLocaleString()}`;
             },
@@ -585,7 +594,7 @@ export default function CostDashboard() {
         y: {
           stacked: true,
           ticks: {
-             
+
             callback: function (value: any) {
               return '$' + value.toLocaleString();
             },
@@ -603,7 +612,7 @@ export default function CostDashboard() {
         },
         tooltip: {
           callbacks: {
-             
+
             label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -661,16 +670,16 @@ export default function CostDashboard() {
 
     try {
       // For annual granularity, use the same date formatting as the main query
-      const apiGranularity = granularity === 'ANNUAL' ? 'MONTHLY' : granularity;
-      const startDate = granularity === 'HOURLY'
-        ? dateRange[0].startOf('day').format('YYYY-MM-DD[T]00:00:00[Z]')
-        : dateRange[0].format('YYYY-MM-DD');
-      const endDate = granularity === 'HOURLY'
-        ? dateRange[1].endOf('day').format('YYYY-MM-DD[T]23:59:59[Z]')
-        : dateRange[1].format('YYYY-MM-DD');
+      const apiGranularity = capturedGranularity === 'ANNUAL' ? 'MONTHLY' : capturedGranularity;
+      const startDate = capturedGranularity === 'HOURLY'
+        ? capturedDateRange[0].startOf('day').format('YYYY-MM-DD[T]00:00:00[Z]')
+        : capturedDateRange[0].format('YYYY-MM-DD');
+      const endDate = capturedGranularity === 'HOURLY'
+        ? capturedDateRange[1].endOf('day').format('YYYY-MM-DD[T]23:59:59[Z]')
+        : capturedDateRange[1].format('YYYY-MM-DD');
 
       const params = new URLSearchParams({
-        profiles: selectedProfiles.join(','),
+        profiles: capturedProfiles.join(','),
         startDate,
         endDate,
         granularity: apiGranularity,
@@ -796,7 +805,14 @@ export default function CostDashboard() {
                 type="primary"
                 icon={<ReloadOutlined />}
                 loading={costLoading}
-                onClick={() => refetch()}
+                onClick={() => {
+                  // Capture current parameters at click time
+                  setCapturedProfiles(selectedProfiles);
+                  setCapturedDateRange(dateRange);
+                  setCapturedGranularity(granularity);
+                  // Trigger the query
+                  setRefreshTrigger(Date.now());
+                }}
                 disabled={selectedProfiles.length === 0}
               >
                 Generate Report
@@ -866,7 +882,10 @@ export default function CostDashboard() {
         <AWSErrorAlert
           error={costError}
           service="cost"
-          onRetry={() => refetch()}
+          onRetry={() => {
+            // Use the same captured parameters for retry
+            setRefreshTrigger(Date.now());
+          }}
           loading={costLoading}
         />
       )}
@@ -883,9 +902,10 @@ export default function CostDashboard() {
       {costData && (() => {
         // Process data to match Python script structure
         // Generate all periods within the date range, not just periods with data
-        const allPeriods = generateAllPeriods(dateRange[0], dateRange[1], granularity);
+        const allPeriods = generateAllPeriods(capturedDateRange[0], capturedDateRange[1], capturedGranularity);
         const periods = allPeriods;
-        const profiles = [...new Set(costData.data.map(d => d.profile))].sort();
+        // Use captured profiles (from query) to ensure all profiles show even if they have 0 data after filtering
+        const profiles = capturedProfiles.sort();
         const services = [...new Set(costData.data.map(d => d.service))].sort();
 
         // Create service data for each profile

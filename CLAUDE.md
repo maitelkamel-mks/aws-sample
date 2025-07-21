@@ -161,7 +161,7 @@ src/lib/aws/
 
 ### Cost Reporting Architecture
 
-The cost reporting system implements performance-optimized data analysis:
+The cost reporting system implements performance-optimized data analysis with controlled data loading:
 
 #### Cost Reporting Features
 - **Service Filtering**: 60+ predefined AWS services with searchable multi-select
@@ -170,13 +170,51 @@ The cost reporting system implements performance-optimized data analysis:
 - **Advanced Tables**: Sortable columns, horizontal scrolling, fixed summary rows
 - **Multi-Format Export**: CSV, JSON, PDF, XLSX, HTML with embedded visualizations
 - **Chart.js Integration**: Interactive bar charts and pie charts
-- **Performance Optimized**: Single API call loads all data for dynamic filtering
+- **Manual Data Loading**: Data loads only on explicit button clicks, not parameter changes
+- **Profile Persistence**: All profile tabs remain visible even when filtered services show 0 data
+
+#### Data Loading Behavior
+- **Query Parameters**: Profiles, date ranges, and granularity changes do NOT trigger automatic data loading
+- **Manual Refresh**: Data loads only when "Generate Report" button is clicked
+- **Parameter Capture**: Query parameters are captured at button click time and frozen until next click
+- **Real-Time Filters**: Tax/support/service filters update display immediately without API calls
+- **Profile Visibility**: All selected profiles remain visible in tabs even with 0 data after filtering
 
 #### Implementation Details
+- **No Caching**: React Query configured with `staleTime: 0` and `gcTime: 0` for always-fresh data
 - **No Pagination**: Tables display complete datasets with horizontal scrolling
 - **Client-Side Processing**: Filtering happens in browser after loading complete data
-- **Export Consistency**: All formats honor the same filtering logic
+- **Export Consistency**: All formats honor the same filtering logic and captured parameters
 - **Annual Aggregation**: Client-side processing of monthly data into yearly reports
+
+### Security Hub Dashboard Architecture
+
+The Security Hub dashboard implements the same controlled loading pattern as the cost reporting system:
+
+#### Security Hub Features
+- **Multi-Region Support**: Query multiple regions simultaneously with graceful error handling
+- **Finding Categorization**: Severity-based filtering (Critical, High, Medium, Low)
+- **Compliance Tracking**: Track compliance status across multiple accounts
+- **Resource Analysis**: Detailed resource information extraction from findings
+- **Workflow Management**: Support for finding workflow states (New, Notified, Resolved, Suppressed)
+
+#### Data Loading Behavior
+- **Controlled Loading**: Same parameter capture mechanism as cost dashboard
+- **Manual Refresh**: Data loads only when "Generate Report" button is clicked
+- **Parameter Independence**: Profile/region changes don't trigger automatic API calls
+- **Real-Time Filtering**: Finding filters update display without re-fetching data
+
+#### Error Handling and Region Support
+- **Graceful Region Handling**: Regions where Security Hub is unavailable are treated as "no data" rather than errors
+- **Service Availability**: Automatically detects and handles regions where Security Hub service is not enabled
+- **Error Parsing**: Enhanced AWS error parsing for user-friendly messages
+- **Partial Failures**: Continues processing even if some profile/region combinations fail
+
+#### Implementation Details
+- **Resource Name Extraction**: Intelligent extraction of resource names from various AWS resource types (EC2, S3, RDS, Lambda, etc.)
+- **ARN Parsing**: Automatic parsing of AWS ARNs to extract meaningful resource identifiers
+- **Finding Aggregation**: Client-side aggregation of findings by severity, account, region, and compliance status
+- **No Caching**: Same React Query configuration as cost dashboard for always-fresh data
 
 ### Desktop Application Architecture
 

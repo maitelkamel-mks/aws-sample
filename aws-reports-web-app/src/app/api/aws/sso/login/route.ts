@@ -1,92 +1,74 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { logSSOAuthentication, logSecurityEvent } from '@/lib/security/audit-logger';
-import path from 'path';
-import fs from 'fs/promises';
-import os from 'os';
-import yaml from 'yaml';
+import { SSOAuthenticationService } from '@/lib/aws/sso-service';
+import { ConfigManager } from '@/lib/config';
 
-const SSO_CONFIG_PATH = path.join(os.homedir(), '.aws', 'sso-config.yaml');
 
-async function loadSSOConfig() {
-  try {
-    const configData = await fs.readFile(SSO_CONFIG_PATH, 'utf8');
-    return yaml.parse(configData);
-  } catch (error) {
-    throw new Error('SSO configuration not found. Please configure SSO first.');
-  }
-}
-
-// Schema for SSO role discovery request
-const SSODiscoverRolesSchema = z.object({
-  startUrl: z.string().url(),
-  region: z.string(),
-  providerName: z.string()
+// Schema for SSO authentication request
+const SSOAuthRequestSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+  providerName: z.string().min(1)
 });
 
-// POST /api/aws/sso/login
+// POST /api/aws/sso/login - Authenticate with enterprise SSO and discover AWS roles
 export async function POST(request: NextRequest) {
   let requestBody: any;
   
   try {
     requestBody = await request.json();
     
-    // Validate request body for role discovery
-    const { startUrl, region, providerName } = SSODiscoverRolesSchema.parse(requestBody);
+    // Validate request body for SSO authentication
+    const { username, password, providerName } = SSOAuthRequestSchema.parse(requestBody);
 
-    // Mock SSO authentication and role discovery
-    // In a real implementation, this would:
-    // 1. Authenticate with the SSO provider using SAML/OAuth
-    // 2. Get the user's available AWS roles
-    // 3. Return the list of roles for selection
+    // Load application configuration
+    const configManager = ConfigManager.getInstance();
+    const config = await configManager.loadUnifiedConfig();
+    
+    // Check if SSO is configured and provider matches
+    if (!config.sso || !config.sso.enabled) {
+      throw new Error('SSO is not configured or enabled');
+    }
+    
+    if (config.sso.providerName !== providerName) {
+      throw new Error(`SSO provider '${providerName}' does not match configured provider '${config.sso.providerName}'`);
+    }
 
-    // Simulate authentication delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Initialize SSO authentication service
+    const ssoService = new SSOAuthenticationService(config.sso);
+    
+    // Find matching profile from SSO configuration
+    const matchingProfile = config.sso.profiles.find(p => p.name === providerName);
+    if (!matchingProfile) {
+      throw new Error(`SSO profile '${providerName}' not found in configuration`);
+    }
 
-    // Mock available roles - replace with actual SSO integration
-    const mockRoles = [
-      {
-        accountId: '123456789012',
-        accountName: 'Production Account',
-        roleName: 'AdminRole',
-        roleArn: 'arn:aws:iam::123456789012:role/AdminRole',
-        principalArn: `arn:aws:iam::123456789012:saml-provider/${providerName}`,
-      },
-      {
-        accountId: '123456789012',
-        accountName: 'Production Account',
-        roleName: 'ReadOnlyRole',
-        roleArn: 'arn:aws:iam::123456789012:role/ReadOnlyRole',
-        principalArn: `arn:aws:iam::123456789012:saml-provider/${providerName}`,
-      },
-      {
-        accountId: '987654321098',
-        accountName: 'Development Account',
-        roleName: 'DeveloperRole',
-        roleArn: 'arn:aws:iam::987654321098:role/DeveloperRole',
-        principalArn: `arn:aws:iam::987654321098:saml-provider/${providerName}`,
-      },
-      {
-        accountId: '555666777888',
-        accountName: 'Testing Account',
-        roleName: 'TesterRole',
-        roleArn: 'arn:aws:iam::555666777888:role/TesterRole',
-        principalArn: `arn:aws:iam::555666777888:saml-provider/${providerName}`,
-      }
-    ];
+    // Authenticate with SSO provider and get AWS credentials
+    const credentials = await ssoService.authenticateWithSSO(
+      username,
+      password,
+      providerName
+    );
 
     // Log successful authentication
-    logSSOAuthentication('sso-discovery', true);
+    logSSOAuthentication('sso-role-discovery', true);
 
+    // Return authentication success with credential information
     return NextResponse.json({
       success: true,
       data: {
-        roles: mockRoles,
+        profile: {
+          name: matchingProfile.name,
+          accountId: credentials.accountId,
+          roleName: matchingProfile.roleName,
+          roleArn: credentials.roleArn,
+          region: credentials.region
+        },
         sessionInfo: {
-          userId: 'user@company.com',
-          displayName: 'SSO User',
           authenticatedAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 3600000).toISOString() // 1 hour
+          expiresAt: credentials.expiration.toISOString(),
+          provider: providerName
         }
       }
     });

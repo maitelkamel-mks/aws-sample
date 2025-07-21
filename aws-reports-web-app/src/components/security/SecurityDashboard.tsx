@@ -205,6 +205,11 @@ export default function SecurityDashboard() {
   const [globalSummaryPageSize, setGlobalSummaryPageSize] = useState(20);
   const [profileSummaryPageSizes, setProfileSummaryPageSizes] = useState<Record<string, number>>({});
   const [exportLoading, setExportLoading] = useState<string | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  // Captured parameters at button click time - these are used for the actual query
+  const [capturedProfiles, setCapturedProfiles] = useState<string[]>([]);
+  const [capturedRegions, setCapturedRegions] = useState<string[]>(['us-east-1']);
 
   // Helper functions for profile page sizes
   const getProfilePageSize = (profile: string) => profileSummaryPageSizes[profile] || 20;
@@ -213,7 +218,7 @@ export default function SecurityDashboard() {
   };
 
   const handleExport = async (format: 'pdf' | 'xlsx' | 'html') => {
-    if (!securityData || selectedProfiles.length === 0) {
+    if (!securityData || capturedProfiles.length === 0) {
       message.error('Please generate a report first');
       return;
     }
@@ -221,8 +226,8 @@ export default function SecurityDashboard() {
     setExportLoading(format);
     try {
       const params = new URLSearchParams({
-        profiles: selectedProfiles.join(','),
-        regions: selectedRegions.join(','),
+        profiles: capturedProfiles.join(','),
+        regions: capturedRegions.join(','),
         format,
       });
 
@@ -334,14 +339,14 @@ export default function SecurityDashboard() {
     }
   }, [securityConfig, useConfigDefaults]);
 
-  const { data: securityData, isLoading: securityLoading, error: securityError, refetch } = useQuery({
-    queryKey: ['security-data', selectedProfiles, selectedRegions, severityFilter, workflowFilter, complianceFilter],
+  const { data: securityData, isLoading: securityLoading, error: securityError } = useQuery({
+    queryKey: ['security-data', refreshTrigger],
     queryFn: async () => {
-      if (selectedProfiles.length === 0 || selectedRegions.length === 0) return null;
+      if (capturedProfiles.length === 0 || capturedRegions.length === 0) return null;
 
       const params = new URLSearchParams({
-        profiles: selectedProfiles.join(','),
-        regions: selectedRegions.join(','),
+        profiles: capturedProfiles.join(','),
+        regions: capturedRegions.join(','),
       });
 
       if (severityFilter.length > 0) {
@@ -359,7 +364,10 @@ export default function SecurityDashboard() {
       const result = await response.json();
       return result.data as SecurityResponse;
     },
-    enabled: false,
+    enabled: refreshTrigger > 0,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
   });
 
   const awsRegions = [
@@ -741,7 +749,13 @@ export default function SecurityDashboard() {
                 type="primary"
                 icon={<ReloadOutlined />}
                 loading={securityLoading}
-                onClick={() => refetch()}
+                onClick={() => {
+                  // Capture current parameters at click time
+                  setCapturedProfiles(selectedProfiles);
+                  setCapturedRegions(selectedRegions);
+                  // Trigger the query
+                  setRefreshTrigger(Date.now());
+                }}
                 disabled={selectedProfiles.length === 0 || selectedRegions.length === 0}
               >
                 Refresh Findings
@@ -838,7 +852,10 @@ export default function SecurityDashboard() {
         <AWSErrorAlert
           error={securityError}
           service="security"
-          onRetry={() => refetch()}
+          onRetry={() => {
+            // Use the same captured parameters for retry
+            setRefreshTrigger(Date.now());
+          }}
           loading={securityLoading}
         />
       )}

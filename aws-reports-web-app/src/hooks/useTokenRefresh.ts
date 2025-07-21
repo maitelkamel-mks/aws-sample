@@ -174,7 +174,7 @@ export function useProfileTokenRefresh(options: UseProfileTokenRefreshOptions) {
     } finally {
       setIsRefreshing(false);
     }
-  }, [service, options.profileName, options.onRefresh, options.onError]);
+  }, [service, options]);
 
   // Register for refresh notifications for this profile
   useEffect(() => {

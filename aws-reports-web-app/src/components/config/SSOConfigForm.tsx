@@ -30,7 +30,7 @@ import {
   ReloadOutlined,
   LoginOutlined 
 } from '@ant-design/icons';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { SSOConfiguration, SSOProfile } from '@/lib/types/sso';
 
 const { Title, Text } = Typography;
@@ -51,12 +51,7 @@ export default function SSOConfigForm({ onSave, onTest }: SSOConfigFormProps) {
   const [availableRoles, setAvailableRoles] = useState<SSOProfile[]>([]);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
 
-  // Load existing configuration
-  useEffect(() => {
-    loadConfiguration();
-  }, []);
-
-  const loadConfiguration = async () => {
+  const loadConfiguration = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch('/api/aws/sso/config');
@@ -73,7 +68,12 @@ export default function SSOConfigForm({ onSave, onTest }: SSOConfigFormProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [form]);
+
+  // Load existing configuration
+  useEffect(() => {
+    loadConfiguration();
+  }, [loadConfiguration]);
 
   const handleSave = async (values: any) => {
     try {

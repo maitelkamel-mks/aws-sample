@@ -268,21 +268,47 @@ export class SecurityHubService {
           allFindings.push(...findingsWithProfile);
           summaries.push(summary);
         } catch (error) {
-          const errorMessage = `Profile "${profile}" in region "${region}": ${parseAWSError(error)}`;
+          const parsedError = parseAWSError(error);
+          const errorMessage = `Profile "${profile}" in region "${region}": ${parsedError}`;
+          
+          // Check if this is a "service not available in region" error
+          if (parsedError.includes('Invalid AWS region specified or service not available in this region') ||
+              parsedError.includes('Security Hub is not enabled in this region')) {
+            // Treat region unavailability as no data, not an error
+            console.warn(`Security Hub not available in region ${region} for profile ${profile}, skipping...`);
+            continue;
+          }
+          
           console.error(`Failed to get data for profile ${profile} in region ${region}:`, error);
           errors.push(errorMessage);
         }
       }
     }
 
-    // Only throw if ALL profile/region combinations failed
+    // Only throw if ALL profile/region combinations failed with non-region errors
     if (errors.length > 0 && allFindings.length === 0) {
-      throw new Error(`Failed to retrieve security data from any profile/region combination. Errors: ${errors.join('; ')}`);
+      // Check if all errors are just region unavailability (which we now handle gracefully)
+      const nonRegionErrors = errors.filter(error => 
+        !error.includes('Invalid AWS region specified or service not available in this region') &&
+        !error.includes('Security Hub is not enabled in this region')
+      );
+      
+      // Only throw if there are actual errors (not just region unavailability)
+      if (nonRegionErrors.length > 0) {
+        throw new Error(`Failed to retrieve security data from any profile/region combination. Errors: ${errors.join('; ')}`);
+      }
     }
 
     // If some combinations failed but we have some data, log warnings but continue
     if (errors.length > 0) {
-      console.warn(`Some profile/region combinations failed (${errors.length}):`, errors);
+      const nonRegionErrors = errors.filter(error => 
+        !error.includes('Invalid AWS region specified or service not available in this region') &&
+        !error.includes('Security Hub is not enabled in this region')
+      );
+      
+      if (nonRegionErrors.length > 0) {
+        console.warn(`Some profile/region combinations failed (${nonRegionErrors.length}):`, nonRegionErrors);
+      }
     }
 
     // Calculate overview

@@ -14,12 +14,14 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
   - **Multiple Time Granularities**: Hourly, Daily, Monthly, and Annual reporting options
   - **Multi-Format Export**: CSV, JSON, PDF, XLSX, and HTML export capabilities
   - **Client-Side Filtering**: Real-time tax/support exclusion without re-fetching data
+  - **Controlled Data Loading**: Data loads only on explicit button clicks, not parameter changes
   - **SSO Profile Support**: Full integration with enterprise SSO-managed AWS accounts
 - **Security Dashboard**: Security Hub findings aggregation and analysis
   - Advanced table sorting with multiple severity levels
   - Profile-specific findings tracking with accurate mapping
   - Enhanced pagination controls with quick jumper and size changer
   - Real-time filtering by severity, workflow state, and compliance status
+  - Controlled data loading - parameters don't trigger automatic refreshes
 - **Enterprise SSO Integration**: Complete single sign-on authentication system
   - **SSO Login & Role Discovery**: One-click login to discover available AWS roles
   - **Interactive Role Selection**: Modal interface for selecting and managing AWS roles
@@ -129,6 +131,16 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
    - Configure security settings (SSL verification, token encryption, session binding)
    - Set up enterprise proxy settings if required
 
+### Data Loading Behavior
+
+The application implements controlled data loading to prevent unwanted API calls:
+
+- **Parameter Changes**: Modifying profiles, date ranges, or granularity settings does NOT trigger automatic data loading
+- **Manual Loading**: Data is fetched only when you explicitly click the "Generate Report" button
+- **Real-Time Filters**: Filters like tax/support exclusions and service selections update the display immediately without API calls
+- **Fresh Data**: No caching is used - each button click fetches fresh data from AWS APIs
+- **Profile Persistence**: All selected profiles remain visible in tabs even when filtered data shows 0 for that profile
+
 ### Generating Reports
 
 #### Cost Reports
@@ -149,7 +161,7 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
    - **Tax Exclusion**: Toggle to exclude/include tax charges in reports
    - **Support Exclusion**: Toggle to exclude/include AWS support costs
    - **Real-Time Filtering**: Changes apply instantly without re-fetching data
-7. Click "Fetch Cost Data" to generate comprehensive cost analysis
+7. Click "Generate Report" to load data and generate comprehensive cost analysis
 8. **Multi-View Analysis:**
    - **Account Totals Tab**: Cost per account across time periods
    - **Service Totals Tab**: Cost per service across all accounts
@@ -170,7 +182,7 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
 #### Security Dashboard
 1. Navigate to "Security Hub" page
 2. Select AWS profiles and regions
-3. Click "Refresh Findings"
+3. Click "Generate Report" to load security findings
 4. Use filters to narrow down results by severity, status, or compliance
 5. **Enhanced Table Features:**
    - Sort by any column (severity levels, total findings, account/region names)
