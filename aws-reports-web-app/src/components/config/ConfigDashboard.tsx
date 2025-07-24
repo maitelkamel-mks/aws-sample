@@ -3,9 +3,10 @@
 import { Card, Tabs, Typography, Alert } from 'antd';
 import CostConfigForm from './CostConfigForm';
 import SecurityConfigForm from './SecurityConfigForm';
-import ProfilesDisplay from './ProfilesDisplay';
+import MultiProviderProfilesDisplay from './MultiProviderProfilesDisplay';
 import ProxyConfigForm from './ProxyConfigForm';
-import SSOConfigForm from './SSOConfigForm';
+import MultiProviderSSOConfigForm from './MultiProviderSSOConfigForm';
+import CLIProfilesDisplay from './CLIProfilesDisplay';
 
 const { Title } = Typography;
 
@@ -13,26 +14,31 @@ export default function ConfigDashboard() {
   const items = [
     {
       key: '1',
-      label: 'AWS Profiles',
-      children: <ProfilesDisplay />,
+      label: 'CLI Profiles',
+      children: <CLIProfilesDisplay />,
     },
     {
       key: '2',
-      label: 'SSO Configuration',
-      children: <SSOConfigForm />,
+      label: 'SSO Profiles',
+      children: <MultiProviderProfilesDisplay />,
     },
     {
       key: '3',
+      label: 'SSO Providers',
+      children: <MultiProviderSSOConfigForm />,
+    },
+    {
+      key: '4',
       label: 'Cost Configuration',
       children: <CostConfigForm />,
     },
     {
-      key: '4',
+      key: '5',
       label: 'Security Configuration',
       children: <SecurityConfigForm />,
     },
     {
-      key: '5',
+      key: '6',
       label: 'Proxy Settings',
       children: <ProxyConfigForm />,
     },

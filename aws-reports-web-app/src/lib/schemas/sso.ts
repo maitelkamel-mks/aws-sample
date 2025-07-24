@@ -23,19 +23,14 @@ export const ProviderSettingsSchema = z.object({
 export const SSOProfileSchema = z.object({
   name: z.string().min(1, 'Profile name is required'),
   accountId: z.string().regex(/^\d{12}$/, 'Account ID must be 12 digits'),
-  roleName: z.string().min(1, 'Role name is required'),
-  roleArn: z.string().startsWith('arn:aws:iam::', 'Invalid role ARN format'),
-  principalArn: z.string().startsWith('arn:aws:iam::', 'Invalid principal ARN format'),
-  description: z.string().optional(),
-  region: z.string().min(1).optional(),
-  type: z.literal('sso')
+  roleName: z.string().min(1, 'Role name is required')
 });
 
 export const SSOConfigurationSchema = z.object({
   enabled: z.boolean(),
   providerName: z.string().min(1, 'Provider name is required'),
   startUrl: z.string().url('Invalid start URL'),
-  authenticationType: z.enum(['SoftID', 'LDAP', 'OAuth2']),
+  authenticationType: z.enum(['SAML', 'LDAP', 'OAuth2']),
   sessionDuration: z.number().min(900).max(43200), // 15 minutes to 12 hours
   region: z.string().min(1, 'Region is required'),
   samlDestination: z.string().optional(),

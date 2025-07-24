@@ -5,7 +5,53 @@ import { z } from 'zod';
 import { CostConfig } from '../types/cost';
 import { SecurityConfig } from '../types/security';
 import { ProxyConfig } from '../types/proxy';
-import { SSOConfiguration } from '../types/sso';
+import { 
+  MultiProviderSSOConfig, 
+  ProviderConfig, 
+  SSOProviderType,
+  SecuritySettings,
+  ProxySettings
+} from '../types/sso-providers';
+
+// Multi-Provider SSO Configuration Schemas
+const SecuritySettingsSchema = z.object({
+  sslVerification: z.boolean(),
+  tokenEncryption: z.boolean(),
+  sessionBinding: z.boolean(),
+  auditLogging: z.boolean(),
+  mfaRequired: z.boolean().optional(),
+  sessionTimeout: z.number().optional(),
+});
+
+const ProxySettingsSchema = z.object({
+  enabled: z.boolean(),
+  url: z.string().optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  excludeDomains: z.array(z.string()).optional(),
+});
+
+const ProviderSettingsSchema = z.record(z.any());
+
+const ProviderConfigSchema = z.object({
+  id: z.string(),
+  type: z.enum(['SAML', 'AWS_SSO', 'OIDC', 'LDAP']),
+  name: z.string(),
+  settings: ProviderSettingsSchema,
+  security: SecuritySettingsSchema.optional(),
+  proxy: ProxySettingsSchema.optional(),
+});
+
+const MultiProviderSSOConfigSchema = z.object({
+  version: z.string(),
+  lastModified: z.string(),
+  providers: z.array(ProviderConfigSchema),
+  defaultProvider: z.string().optional(),
+  globalSettings: z.object({
+    security: SecuritySettingsSchema,
+    proxy: ProxySettingsSchema.optional(),
+  }).optional(),
+});
 
 // Unified Configuration Schema
 const UnifiedConfigSchema = z.object({
@@ -29,7 +75,7 @@ const UnifiedConfigSchema = z.object({
     home_region: z.string(),
   }).optional(),
   
-  // Proxy Configuration
+  // Proxy Configuration (Legacy - for backward compatibility)
   proxy: z.object({
     enabled: z.boolean(),
     url: z.string().optional(),
@@ -38,38 +84,8 @@ const UnifiedConfigSchema = z.object({
     no_proxy: z.array(z.string()).optional(),
   }).optional(),
   
-  // SSO Configuration
-  sso: z.object({
-    enabled: z.boolean(),
-    providerName: z.string(),
-    startUrl: z.string(),
-    authenticationType: z.enum(['SoftID', 'LDAP', 'OAuth2']),
-    sessionDuration: z.number(),
-    region: z.string(),
-    samlDestination: z.string().optional(),
-    providerSettings: z.object({
-      realm: z.string().optional(),
-      module: z.string().optional(),
-      gotoUrl: z.string().optional(),
-      metaAlias: z.string().optional(),
-    }).optional(),
-    profiles: z.array(z.object({
-      name: z.string(),
-      accountId: z.string(),
-      roleName: z.string(),
-      roleArn: z.string(),
-      principalArn: z.string(),
-      description: z.string().optional(),
-      region: z.string().optional(),
-      type: z.literal('sso'),
-    })),
-    security: z.object({
-      sslVerification: z.boolean().optional(),
-      tokenEncryption: z.boolean().optional(),
-      sessionBinding: z.boolean().optional(),
-      auditLogging: z.boolean().optional(),
-    }).optional(),
-  }).optional(),
+  // Multi-Provider SSO Configuration
+  multiProviderSSO: MultiProviderSSOConfigSchema.optional(),
 });
 
 // Extract schemas for individual sections
@@ -78,6 +94,14 @@ const SecurityConfigSchema = UnifiedConfigSchema.shape.security.unwrap();
 const ProxyConfigSchema = UnifiedConfigSchema.shape.proxy.unwrap();
 
 export type UnifiedConfig = z.infer<typeof UnifiedConfigSchema>;
+
+// Export the schemas for use in other modules
+export { 
+  MultiProviderSSOConfigSchema,
+  ProviderConfigSchema,
+  SecuritySettingsSchema,
+  ProxySettingsSchema 
+};
 
 export class ConfigManager {
   private static instance: ConfigManager;
@@ -251,31 +275,186 @@ export class ConfigManager {
     await this.saveUnifiedConfig(unifiedConfig);
   }
 
-  // SSO Configuration Methods
-  public async loadSSOConfig(): Promise<SSOConfiguration | null> {
+  // Multi-Provider SSO Configuration Methods
+  public async loadMultiProviderSSOConfig(): Promise<MultiProviderSSOConfig | null> {
     try {
       const unifiedConfig = await this.loadUnifiedConfig();
-      return unifiedConfig.sso || null;
+      return unifiedConfig.multiProviderSSO || null;
     } catch {
       return null;
     }
   }
 
-  public async saveSSOConfig(ssoConfig: SSOConfiguration): Promise<void> {
-    await this.updateSSOConfig(ssoConfig);
+  public async saveMultiProviderSSOConfig(ssoConfig: MultiProviderSSOConfig): Promise<void> {
+    await this.updateMultiProviderSSOConfig(ssoConfig);
   }
 
-  public async updateSSOConfig(ssoConfig: SSOConfiguration): Promise<void> {
+  public async updateMultiProviderSSOConfig(ssoConfig: MultiProviderSSOConfig): Promise<void> {
     const unifiedConfig = await this.loadUnifiedConfig();
-    unifiedConfig.sso = ssoConfig;
+    unifiedConfig.multiProviderSSO = ssoConfig;
     await this.saveUnifiedConfig(unifiedConfig);
   }
 
-  public async ssoConfigExists(): Promise<boolean> {
+  public async multiProviderSSOConfigExists(): Promise<boolean> {
     try {
       const unifiedConfig = await this.loadUnifiedConfig();
-      return !!unifiedConfig.sso;
+      return !!unifiedConfig.multiProviderSSO;
     } catch {
+      return false;
+    }
+  }
+
+  // Provider-specific configuration management
+  public async getProviderConfig(providerId: string): Promise<ProviderConfig | null> {
+    const ssoConfig = await this.loadMultiProviderSSOConfig();
+    if (!ssoConfig) return null;
+    
+    return ssoConfig.providers.find(p => p.id === providerId) || null;
+  }
+
+  public async addProvider(providerConfig: ProviderConfig): Promise<void> {
+    let ssoConfig = await this.loadMultiProviderSSOConfig();
+    
+    if (!ssoConfig) {
+      // Create new multi-provider config
+      ssoConfig = {
+        version: '1.0',
+        lastModified: new Date().toISOString(),
+        providers: [providerConfig],
+        globalSettings: {
+          security: {
+            sslVerification: true,
+            tokenEncryption: true,
+            sessionBinding: true,
+            auditLogging: true
+          }
+        }
+      };
+    } else {
+      // Add to existing config
+      ssoConfig.providers.push(providerConfig);
+      ssoConfig.lastModified = new Date().toISOString();
+    }
+    
+    await this.saveMultiProviderSSOConfig(ssoConfig);
+  }
+
+  public async updateProvider(providerId: string, providerConfig: ProviderConfig): Promise<void> {
+    const ssoConfig = await this.loadMultiProviderSSOConfig();
+    if (!ssoConfig) {
+      throw new Error('No SSO configuration exists');
+    }
+    
+    const providerIndex = ssoConfig.providers.findIndex(p => p.id === providerId);
+    if (providerIndex === -1) {
+      throw new Error(`Provider ${providerId} not found`);
+    }
+    
+    ssoConfig.providers[providerIndex] = providerConfig;
+    ssoConfig.lastModified = new Date().toISOString();
+    
+    await this.saveMultiProviderSSOConfig(ssoConfig);
+  }
+
+  public async removeProvider(providerId: string): Promise<void> {
+    const ssoConfig = await this.loadMultiProviderSSOConfig();
+    if (!ssoConfig) {
+      throw new Error('No SSO configuration exists');
+    }
+    
+    ssoConfig.providers = ssoConfig.providers.filter(p => p.id !== providerId);
+    ssoConfig.lastModified = new Date().toISOString();
+    
+    await this.saveMultiProviderSSOConfig(ssoConfig);
+  }
+
+  public async listProviders(): Promise<ProviderConfig[]> {
+    const ssoConfig = await this.loadMultiProviderSSOConfig();
+    return ssoConfig?.providers || [];
+  }
+
+  public async getEnabledProviders(): Promise<ProviderConfig[]> {
+    const providers = await this.listProviders();
+    return providers;
+  }
+
+  public async setDefaultProvider(providerId: string): Promise<void> {
+    const ssoConfig = await this.loadMultiProviderSSOConfig();
+    if (!ssoConfig) {
+      throw new Error('No SSO configuration exists');
+    }
+    
+    const provider = ssoConfig.providers.find(p => p.id === providerId);
+    if (!provider) {
+      throw new Error(`Provider ${providerId} not found`);
+    }
+    
+    ssoConfig.defaultProvider = providerId;
+    ssoConfig.lastModified = new Date().toISOString();
+    
+    await this.saveMultiProviderSSOConfig(ssoConfig);
+  }
+
+  // Migration from legacy single-provider SSO config
+  public async migrateLegacySSOConfig(): Promise<boolean> {
+    try {
+      const unifiedConfig = await this.loadUnifiedConfig();
+      
+      // Check if we have legacy SSO config but no multi-provider config
+      if ((unifiedConfig as any).sso && !unifiedConfig.multiProviderSSO) {
+        const legacySSO = (unifiedConfig as any).sso;
+        
+        // Convert to new provider config
+        const providerConfig: ProviderConfig = {
+          id: `legacy-${legacySSO.authenticationType.toLowerCase()}`,
+          type: legacySSO.authenticationType as SSOProviderType,
+          name: legacySSO.providerName || `Legacy ${legacySSO.authenticationType} Provider`,
+          settings: {
+            startUrl: legacySSO.startUrl,
+            sessionDuration: legacySSO.sessionDuration,
+            region: legacySSO.region,
+            samlDestination: legacySSO.samlDestination,
+            ...legacySSO.providerSettings
+          },
+          security: legacySSO.security,
+          proxy: unifiedConfig.proxy ? {
+            enabled: unifiedConfig.proxy.enabled,
+            url: unifiedConfig.proxy.url,
+            username: unifiedConfig.proxy.username,
+            password: unifiedConfig.proxy.password,
+            excludeDomains: unifiedConfig.proxy.no_proxy
+          } : undefined
+        };
+
+        // Create new multi-provider config
+        const multiProviderConfig: MultiProviderSSOConfig = {
+          version: '1.0',
+          lastModified: new Date().toISOString(),
+          providers: [providerConfig],
+          defaultProvider: providerConfig.id,
+          globalSettings: {
+            security: legacySSO.security || {
+              sslVerification: true,
+              tokenEncryption: true,
+              sessionBinding: true,
+              auditLogging: true
+            }
+          }
+        };
+
+        // Save the new config and remove legacy
+        unifiedConfig.multiProviderSSO = multiProviderConfig;
+        delete (unifiedConfig as any).sso;
+        
+        await this.saveUnifiedConfig(unifiedConfig);
+        
+        console.log('Successfully migrated legacy SSO configuration to multi-provider format');
+        return true;
+      }
+      
+      return false; // No migration needed
+    } catch (error) {
+      console.error('Failed to migrate legacy SSO configuration:', error);
       return false;
     }
   }

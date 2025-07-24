@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
         const profileType = profileTypes?.[profile];
         
         // Use the enhanced credentials manager for validation
-        const validationResult = await credentialsManager.validateAnyProfile(profile, profileType);
+        const validationResult = await credentialsManager.validateAnyProfile(profile);
         
         results.push({
           profile,
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
           arn: validationResult.arn,
           userId: validationResult.userId,
           error: validationResult.error,
-          type: profileType || (credentialsManager.isSSOProfile(profile) ? 'sso' : 'cli')
+          type: profileType || 'cli' // Only CLI profiles supported in this legacy endpoint
         });
       } catch (error) {
         console.error(`Connectivity test failed for profile ${profile}:`, error);

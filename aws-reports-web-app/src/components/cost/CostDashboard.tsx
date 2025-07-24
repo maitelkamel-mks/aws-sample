@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { Card, Row, Col, DatePicker, Select, Button, Table, Typography, Space, Spin, App, Tabs, Switch, Dropdown, MenuProps } from 'antd';
 import { ReloadOutlined, DownloadOutlined, FileExcelOutlined, FilePdfOutlined, GlobalOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
+import { useAWSProfileNames } from '@/hooks/useAWSProfiles';
+import AWSProfileSelector from '@/components/common/AWSProfileSelector';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import { CostData, CostSummary, CostConfig } from '@/lib/types/cost';
@@ -83,15 +85,8 @@ export default function CostDashboard() {
     '#52BE80', '#F39C12', '#E74C3C', '#8E44AD', '#3498DB'
   ];
 
-  const { data: profilesData, isLoading: profilesLoading } = useQuery({
-    queryKey: ['aws-profiles'],
-    queryFn: async () => {
-      const response = await fetch('/api/aws/profiles');
-      if (!response.ok) throw new Error('Failed to fetch profiles');
-      const result = await response.json();
-      return result.data as string[];
-    },
-  });
+  // Use the new unified profiles hook
+  const { profiles: profilesData, isLoading: profilesLoading } = useAWSProfileNames();
 
   const { data: costConfig } = useQuery({
     queryKey: ['cost-config'],
@@ -767,15 +762,16 @@ export default function CostDashboard() {
         <Row gutter={[16, 16]} align="middle">
           <Col xs={24} sm={8}>
             <label>AWS Profiles:</label>
-            <Select
-              mode="multiple"
-              style={{ width: '100%', marginTop: 4 }}
-              placeholder="Select profiles"
-              loading={profilesLoading}
-              value={selectedProfiles}
-              onChange={setSelectedProfiles}
-              options={profilesData?.map(profile => ({ label: profile, value: profile }))}
-            />
+            <div style={{ marginTop: 4 }}>
+              <AWSProfileSelector
+                mode="multiple"
+                value={selectedProfiles}
+                onChange={(value) => setSelectedProfiles(value as string[])}
+                placeholder="Select profiles"
+                showTypeBadges
+                showRefresh
+              />
+            </div>
           </Col>
           <Col xs={24} sm={6}>
             <label>Date Range:</label>

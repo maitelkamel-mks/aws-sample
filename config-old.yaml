@@ -1,0 +1,30 @@
+version: "1.0"
+lastModified: 2025-07-22T11:33:38.144Z
+sso:
+  enabled: true
+  providerName: EDF Gardian
+  startUrl: https://websso-gardian.myelectricnetwork.com/gardianwebsso/UI/Login
+  authenticationType: SAML
+  sessionDuration: 36000
+  region: eu-west-1
+  samlDestination: urn:amazon:webservices
+  providerSettings:
+    realm: multiauth
+    module: SoftID
+    gotoUrl: https://websso-gardian.myelectricnetwork.com/gardianwebsso/saml2/jsp/idpSSOInit.jsp
+    metaAlias: /multiauth/idp6-20261219
+  profiles:
+    - name: myftpdr-hprod
+      accountId: "356543344992"
+      roleName: P_CPU_DPNT-SYSOPS-HP
+    - name: myftpdr-hprod2
+      accountId: "481665091657"
+      roleName: P_CPU_DPNT-SYSOPS-HP
+    - name: myftpdr-prod
+      accountId: "515411312103"
+      roleName: P_CPU_DPNT-SYSOPS-P
+  security:
+    sslVerification: true
+    tokenEncryption: true
+    sessionBinding: true
+    auditLogging: true

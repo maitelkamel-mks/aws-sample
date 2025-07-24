@@ -5,6 +5,7 @@ import { SaveOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SecurityConfig } from '@/lib/types/security';
 import { electronAPI } from '@/lib/electron/api';
+import AWSProfileSelector from '@/components/common/AWSProfileSelector';
 
 export default function SecurityConfigForm() {
   const [form] = Form.useForm();
@@ -24,12 +25,6 @@ export default function SecurityConfigForm() {
     },
   });
 
-  const { data: profiles } = useQuery({
-    queryKey: ['aws-profiles'],
-    queryFn: async () => {
-      return await electronAPI.getAWSProfiles();
-    },
-  });
 
   const saveMutation = useMutation({
     mutationFn: async (values: SecurityConfig) => {
@@ -87,10 +82,10 @@ export default function SecurityConfigForm() {
         name="profiles"
         rules={[{ required: true, message: 'Please select at least one profile' }]}
       >
-        <Select
+        <AWSProfileSelector
           mode="multiple"
           placeholder="Select AWS profiles"
-          options={profiles?.map(profile => ({ label: profile, value: profile }))}
+          onChange={(value) => form.setFieldValue('profiles', value)}
         />
       </Form.Item>
 

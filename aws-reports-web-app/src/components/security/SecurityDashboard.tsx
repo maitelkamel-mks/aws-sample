@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { Card, Row, Col, Select, Button, Table, Typography, Space, Tag, Statistic, Input, Spin, App, Alert, Tabs, Dropdown, MenuProps } from 'antd';
 import { ReloadOutlined, SearchOutlined, ExclamationCircleOutlined, WarningOutlined, InfoCircleOutlined, CheckCircleOutlined, DownloadOutlined, FilePdfOutlined, FileExcelOutlined, FileTextOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
+import { useAWSProfileNames } from '@/hooks/useAWSProfiles';
+import AWSProfileSelector from '@/components/common/AWSProfileSelector';
 import type { ColumnsType } from 'antd/es/table';
 import { SecurityFinding, SecuritySummary, SecurityOverview, SecurityConfig } from '@/lib/types/security';
 import AWSErrorAlert from '@/components/common/AWSErrorAlert';
@@ -305,15 +307,8 @@ export default function SecurityDashboard() {
     '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE',
   ];
 
-  const { data: profilesData, isLoading: profilesLoading } = useQuery({
-    queryKey: ['aws-profiles'],
-    queryFn: async () => {
-      const response = await fetch('/api/aws/profiles');
-      if (!response.ok) throw new Error('Failed to fetch profiles');
-      const result = await response.json();
-      return result.data as string[];
-    },
-  });
+  // Use the new unified profiles hook
+  const { profiles: profilesData, isLoading: profilesLoading } = useAWSProfileNames();
 
   const { data: securityConfig } = useQuery({
     queryKey: ['security-config'],
@@ -722,15 +717,16 @@ export default function SecurityDashboard() {
         <Row gutter={[16, 16]} align="middle">
           <Col xs={24} sm={8}>
             <label>AWS Profiles:</label>
-            <Select
-              mode="multiple"
-              style={{ width: '100%', marginTop: 4 }}
-              placeholder="Select profiles"
-              loading={profilesLoading}
-              value={selectedProfiles}
-              onChange={setSelectedProfiles}
-              options={profilesData?.map(profile => ({ label: profile, value: profile }))}
-            />
+            <div style={{ marginTop: 4 }}>
+              <AWSProfileSelector
+                mode="multiple"
+                value={selectedProfiles}
+                onChange={(value) => setSelectedProfiles(value as string[])}
+                placeholder="Select profiles"
+                showTypeBadges
+                showRefresh
+              />
+            </div>
           </Col>
           <Col xs={24} sm={8}>
             <label>Regions:</label>

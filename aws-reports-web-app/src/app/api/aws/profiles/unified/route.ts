@@ -1,41 +1,16 @@
 import { NextResponse } from 'next/server';
 import { AWSCredentialsManager } from '@/lib/aws/credentials';
+import { ConfigManager } from '@/lib/config';
 import { ApiResponse } from '@/lib/types';
-import path from 'path';
-import fs from 'fs/promises';
-import os from 'os';
-import yaml from 'yaml';
-
-const SSO_CONFIG_PATH = path.join(os.homedir(), '.aws', 'sso-config.yaml');
-
-async function loadSSOConfig() {
-  try {
-    const configData = await fs.readFile(SSO_CONFIG_PATH, 'utf8');
-    return yaml.parse(configData);
-  } catch (error) {
-    return null;
-  }
-}
+import { SSOProfile } from '@/lib/types/sso-providers';
 
 // GET /api/aws/profiles/unified
 export async function GET() {
   try {
     const credentialsManager = AWSCredentialsManager.getInstance();
-    
-    // Load SSO configuration if it exists
-    const ssoConfig = await loadSSOConfig();
-    if (ssoConfig && !credentialsManager.isSSOConfigured()) {
-      credentialsManager.configureSSOService(ssoConfig);
-    }
 
     // Get CLI profiles
     const cliProfiles = await credentialsManager.getAvailableProfiles();
-    
-    // Get SSO profiles
-    const ssoProfiles = await credentialsManager.getAvailableSSOProfiles();
-    
-    // Get stored SSO profiles for authentication status
-    const storedSSOProfiles = await credentialsManager.getStoredSSOProfiles();
 
     // Format CLI profiles
     const formattedCliProfiles = cliProfiles.map(name => ({
@@ -47,44 +22,76 @@ export async function GET() {
       roleArn: null
     }));
 
-    // Format SSO profiles with authentication status
-    const formattedSSOProfiles = await Promise.all(
-      ssoProfiles.map(async (profile) => {
-        const isStored = storedSSOProfiles.includes(profile.name);
-        let authStatus = null;
-        
-        if (isStored) {
-          authStatus = await credentialsManager.getSSOAuthenticationStatus(profile.name);
-        }
+    // Get SSO profiles from multi-provider system
+    const configManager = ConfigManager.getInstance();
+    const ssoProfiles: any[] = [];
+    let ssoConfigured = false;
+    const authenticatedSSOProfiles = 0;
 
-        return {
-          name: profile.name,
-          type: 'sso' as const,
-          isAuthenticated: authStatus?.isAuthenticated || false,
-          region: profile.region,
-          accountId: profile.accountId,
-          roleArn: profile.roleArn,
-          description: profile.description,
-          expiresAt: authStatus?.expiresAt?.toISOString() || null,
-          userId: authStatus?.userId || null
-        };
-      })
+    try {
+      const multiProviderConfig = await configManager.loadMultiProviderSSOConfig();
+      if (multiProviderConfig && multiProviderConfig.providers.length > 0) {
+        ssoConfigured = true;
+        
+        // Extract SSO profiles from all configured providers
+        for (const provider of multiProviderConfig.providers) {
+          if (provider.settings?.profiles && Array.isArray(provider.settings.profiles)) {
+            for (const profileData of provider.settings.profiles) {
+              // Check if this profile also exists in CLI (dual type)
+              const existsInCli = cliProfiles.includes(profileData.profileName);
+              
+              ssoProfiles.push({
+                name: profileData.profileName,
+                type: existsInCli ? 'cli+sso' : 'sso' as const,
+                isAuthenticated: false, // SSO authentication is session-based
+                region: profileData.region || null,
+                accountId: profileData.accountId || null,
+                roleArn: profileData.accountId && profileData.roleName 
+                  ? `arn:aws:iam::${profileData.accountId}:role/${profileData.roleName}`
+                  : null,
+                description: `${provider.name} - ${profileData.accountId || 'Unknown Account'}`,
+                // SSO specific fields
+                ssoStartUrl: provider.settings.startUrl,
+                ssoRegion: provider.settings.region,
+                ssoAccountId: profileData.accountId,
+                ssoRoleName: profileData.roleName,
+                providerId: provider.id,
+                providerType: provider.type
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load SSO profiles from multi-provider config:', error);
+      // Continue with CLI profiles only
+    }
+
+    // Update CLI profiles to show dual type if they also exist as SSO
+    const updatedCliProfiles = formattedCliProfiles.map(cliProfile => {
+      const hasSSO = ssoProfiles.some(ssoProfile => ssoProfile.name === cliProfile.name);
+      return {
+        ...cliProfile,
+        type: hasSSO ? 'cli+sso' : 'cli' as const
+      };
+    });
+
+    // Remove duplicate SSO profiles that are already marked as cli+sso
+    const uniqueSSOProfiles = ssoProfiles.filter(ssoProfile => 
+      ssoProfile.type === 'sso' // Only keep pure SSO profiles, not cli+sso ones
     );
 
-    const unifiedProfiles = [
-      ...formattedCliProfiles,
-      ...formattedSSOProfiles
-    ];
+    const unifiedProfiles = [...updatedCliProfiles, ...uniqueSSOProfiles];
 
     return NextResponse.json({
       success: true,
       data: {
-        cliProfiles: formattedCliProfiles,
-        ssoProfiles: formattedSSOProfiles,
+        cliProfiles: updatedCliProfiles,
+        ssoProfiles: uniqueSSOProfiles,
         unifiedProfiles,
-        ssoConfigured: credentialsManager.isSSOConfigured(),
+        ssoConfigured,
         totalProfiles: unifiedProfiles.length,
-        authenticatedSSOProfiles: formattedSSOProfiles.filter(p => p.isAuthenticated).length
+        authenticatedSSOProfiles
       },
       timestamp: new Date().toISOString(),
     } as ApiResponse<any>);

@@ -7,6 +7,7 @@ import { CostConfig } from '@/lib/types/cost';
 import dayjs from 'dayjs';
 import { electronAPI } from '@/lib/electron/api';
 import { AWS_SERVICE_OPTIONS } from '@/lib/constants/aws-services';
+import AWSProfileSelector from '@/components/common/AWSProfileSelector';
 
 export default function CostConfigForm() {
   const [form] = Form.useForm();
@@ -26,12 +27,6 @@ export default function CostConfigForm() {
     },
   });
 
-  const { data: profiles } = useQuery({
-    queryKey: ['aws-profiles'],
-    queryFn: async () => {
-      return await electronAPI.getAWSProfiles();
-    },
-  });
 
   const saveMutation = useMutation({
     mutationFn: async (values: CostConfig) => {
@@ -105,10 +100,10 @@ export default function CostConfigForm() {
         name="profiles"
         rules={[{ required: true, message: 'Please select at least one profile' }]}
       >
-        <Select
+        <AWSProfileSelector
           mode="multiple"
           placeholder="Select AWS profiles"
-          options={profiles?.map(profile => ({ label: profile, value: profile }))}
+          onChange={(value) => form.setFieldValue('profiles', value)}
         />
       </Form.Item>
 

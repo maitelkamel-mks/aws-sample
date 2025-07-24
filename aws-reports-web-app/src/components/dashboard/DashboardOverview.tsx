@@ -20,10 +20,15 @@ export default function HomePage() {
   const { data: profiles, error: profilesError } = useQuery({
     queryKey: ['aws-profiles'],
     queryFn: async () => {
-      const response = await fetch('/api/aws/profiles');
-      if (!response.ok) throw new Error('Failed to fetch AWS profiles');
-      const result = await response.json();
-      return result.data as string[];
+      try {
+        const response = await fetch('/api/aws/profiles');
+        if (!response.ok) throw new Error('Failed to fetch AWS profiles');
+        const result = await response.json();
+        return result.data as string[] || [];
+      } catch (error) {
+        console.error('Failed to fetch AWS profiles:', error);
+        return [];
+      }
     },
   });
 

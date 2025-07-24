@@ -1,103 +1,122 @@
 # AWS Reports Web Application
 
-A modern Next.js web application for AWS cost reporting and Security Hub dashboard functionality with enterprise SSO integration, providing a unified, full-stack TypeScript solution for AWS management and reporting.
+A modern **hybrid Next.js web application** for AWS cost reporting and Security Hub dashboard functionality with enterprise **multi-provider SSO integration**, providing a unified, full-stack TypeScript solution for AWS management and reporting. Available both as a web application and cross-platform desktop application.
 
-## Features
+## 🏗️ Architecture Overview
 
-- **Comprehensive Cost Reporting**: AWS cost analysis with Cost Explorer API integration
-  - **Service Filtering**: 60+ predefined AWS services with searchable multi-select dropdown
-  - **Flexible Service Selection**: Show all services or filter to specific services of interest
-  - **Multi-View Analysis**: Switch between Account totals, Service totals, and Individual account breakdowns
-  - **Advanced Data Tables**: Sortable tables with horizontal scrolling and fixed columns
-  - **Summary Rows**: Fixed total rows in table footers showing aggregate costs
-  - **Interactive Visualizations**: Chart.js integration with bar charts and pie charts
-  - **Multiple Time Granularities**: Hourly, Daily, Monthly, and Annual reporting options
-  - **Multi-Format Export**: CSV, JSON, PDF, XLSX, and HTML export capabilities
-  - **Client-Side Filtering**: Real-time tax/support exclusion without re-fetching data
-  - **Controlled Data Loading**: Data loads only on explicit button clicks, not parameter changes
-  - **SSO Profile Support**: Full integration with enterprise SSO-managed AWS accounts
-- **Security Dashboard**: Security Hub findings aggregation and analysis
-  - Advanced table sorting with multiple severity levels
-  - Profile-specific findings tracking with accurate mapping
-  - Enhanced pagination controls with quick jumper and size changer
-  - Real-time filtering by severity, workflow state, and compliance status
-  - Controlled data loading - parameters don't trigger automatic refreshes
-- **Enterprise SSO Integration**: Complete single sign-on authentication system
-  - **SSO Login & Role Discovery**: One-click login to discover available AWS roles
-  - **Interactive Role Selection**: Modal interface for selecting and managing AWS roles
-  - **Automatic Profile Configuration**: Auto-save selected roles to persistent configuration
-  - **Multi-Provider Support**: SoftID, LDAP, and OAuth2 authentication types
-  - **Security Features**: Token encryption, session binding, and audit logging
-  - **Proxy Support**: Enterprise proxy configuration for SSO connections
-- **Multi-Account Support**: Manage multiple AWS profiles and accounts
-- **HTTP Proxy Support**: Automatic proxy configuration when HTTP_PROXY environment variables are set
-- **Real-time Filtering**: Interactive filtering and search capabilities
-- **Data Export**: Export reports in HTML, PDF, and Excel formats
-- **Cross-Platform Desktop App**: Electron-based desktop application for macOS, Windows, and Linux
-- **Responsive Design**: Mobile-friendly interface using Ant Design
+### **Hybrid Architecture (Web + Desktop)**
+- **Next.js 15 App Router**: Modern web framework with server-side API routes
+- **Electron Integration**: Cross-platform desktop wrapper with secure IPC communication
+- **Universal Codebase**: Same React components work seamlessly in both browser and desktop environments
+- **Platform Detection**: Automatic fallback between Electron and browser APIs
+
+### **Key Architectural Features**
+- **Controlled Data Loading**: Manual refresh pattern prevents unnecessary API calls on parameter changes
+- **Multi-Provider SSO**: Comprehensive authentication system supporting SAML, AWS SSO, and OIDC simultaneously
+- **Unified Configuration**: Single `config.yaml` file architecture containing all application settings
+- **Reusable Components**: Comprehensive shared component library with consistent patterns
+- **Profile Management**: Unified system handling CLI, SSO, and hybrid CLI+SSO profiles
+
+## ✨ Features
+
+### **Cost Reporting & Analysis**
+- **Service Filtering**: 60+ predefined AWS services with searchable multi-select dropdown
+- **Controlled Data Loading**: Data loads only on explicit button clicks, not parameter changes
+- **Multi-View Analysis**: Account totals, Service totals, and Individual account breakdowns
+- **Advanced Data Tables**: Sortable tables with horizontal scrolling and fixed columns
+- **Interactive Visualizations**: Chart.js integration with bar charts and pie charts
+- **Multiple Time Granularities**: Hourly, Daily, Monthly, and Annual reporting options
+- **Multi-Format Export**: CSV, JSON, PDF, XLSX, and HTML export capabilities with embedded visualizations
+- **Client-Side Filtering**: Real-time tax/support exclusion without re-fetching data
+- **Profile Persistence**: All profile tabs remain visible even when filtered data shows 0
+
+### **Security Hub Dashboard**
+- **Multi-Region Support**: Query multiple regions simultaneously with graceful error handling
+- **Finding Categorization**: Severity-based filtering (Critical, High, Medium, Low)
+- **Compliance Tracking**: Track compliance status across multiple accounts
+- **Resource Analysis**: Detailed resource information extraction from findings
+- **Workflow Management**: Support for finding workflow states (New, Notified, Resolved, Suppressed)
+- **Enhanced Table Features**: Advanced pagination, sorting, and quick navigation controls
+- **Controlled Loading**: Same parameter capture mechanism as cost dashboard
+
+### **Multi-Provider SSO System**
+- **SAML Provider**: Enterprise SAML 2.0 authentication with JSON API integration
+- **AWS Managed SSO Provider**: AWS Identity Center integration with OAuth2 device authorization flow
+- **OIDC Provider**: Generic OpenID Connect 1.0 support with PKCE security
+- **Provider Registry**: Central orchestrator managing multiple providers simultaneously
+- **Dynamic Configuration**: Auto-generating UI forms based on provider schemas
+- **Health Monitoring**: Real-time provider health checks and session tracking
+- **Security-First Design**: Token encryption, session binding, and comprehensive audit logging
+- **Role Discovery**: Automatic discovery and configuration of AWS roles from multiple providers
+
+### **Profile Management**
+- **Unified Profile System**: Handles CLI, SSO, and hybrid CLI+SSO profiles through consistent interface
+- **Profile Types**: Support for `'cli' | 'sso' | 'cli+sso'` profile types
+- **Authentication Status**: Real-time authentication state tracking
+- **Cross-Component Synchronization**: Changes in one component automatically update all related pages
+- **Reusable Components**: `AWSProfileSelector` component for consistent profile selection across the application
+
+### **Desktop Application**
+- **Cross-Platform Support**: Native builds for macOS ARM64, Windows x64, and Linux x64
+- **Native File Access**: Direct access to AWS credentials and config files
+- **Secure IPC**: All file system operations go through main process for security
+- **Automatic Fallback**: Components automatically use browser APIs when not in Electron
+- **Production Ready**: Builds to distributable packages (DMG, ZIP, EXE, AppImage, DEB, RPM)
+
+### **Enterprise Features**
+- **HTTP Proxy Support**: Comprehensive proxy configuration for enterprise environments
+- **Multi-Account Management**: Seamless switching between multiple AWS accounts
+- **Error Handling**: User-friendly error messages with AWS-specific troubleshooting guidance
 - **Configuration Management**: Web-based unified configuration for all AWS and SSO settings
-- **Error Handling**: User-friendly error messages with troubleshooting guidance
+- **Audit Logging**: Comprehensive security event logging for enterprise compliance
 
-## Prerequisites
+## 🚀 Quick Start
 
-- Node.js 18+ and npm
-- React 18 (for Ant Design v5 compatibility)
-- AWS CLI configured with profiles
-- AWS credentials with appropriate permissions for:
-  - Cost Explorer (for cost reporting)
-  - Security Hub (for security findings)
-- Optional: HTTP proxy configuration if required by your network environment
+### Prerequisites
+- **Node.js 18+** and npm
+- **AWS CLI** configured with profiles
+- **AWS credentials** with appropriate permissions for Cost Explorer and Security Hub
+- **Optional**: HTTP proxy configuration if required by your network environment
 
-## Installation
+### Installation
 
-### Web Application
+#### Web Application
+```bash
+# Install dependencies
+npm install
 
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+# Configure AWS profiles
+aws configure --profile your-profile-name
 
-2. **Configure AWS profiles:**
-   Ensure your AWS credentials are configured using AWS CLI:
-   ```bash
-   aws configure --profile your-profile-name
-   ```
+# Run development server
+npm run dev          # Uses Turbopack (faster)
+# OR
+npm run dev:webpack  # Uses traditional Webpack
+```
 
-3. **Run the development server:**
-   ```bash
-   npm run dev          # Uses Turbopack (faster)
-   # OR
-   npm run dev:webpack  # Uses traditional Webpack
-   ```
+#### Desktop Application
+```bash
+# Run desktop app in development
+npm run electron:dev
 
-### Desktop Application
+# Build desktop app for production
+npm run electron:build        # Current platform
+npm run electron:build:mac    # macOS ARM64
+npm run electron:build:win    # Windows x64
+npm run electron:build:linux  # Linux x64
+npm run electron:build:all    # All platforms
+```
 
-1. **Run desktop app in development:**
-   ```bash
-   npm run electron:dev
-   ```
+#### Optional: HTTP Proxy Configuration
+```bash
+export HTTP_PROXY=http://proxy.company.com:8080
+export HTTPS_PROXY=http://proxy.company.com:8080
+export NO_PROXY=localhost,127.0.0.1,.company.com
+```
 
-2. **Build desktop app for production:**
-   ```bash
-   npm run electron:build        # Current platform
-   npm run electron:build:mac    # macOS ARM64
-   npm run electron:build:win    # Windows x64
-   npm run electron:build:linux  # Linux x64
-   npm run electron:build:all    # All platforms
-   ```
+Open your browser to [http://localhost:3000](http://localhost:3000)
 
-4. **Configure HTTP Proxy (Optional):**
-   If your environment requires an HTTP proxy, set environment variables:
-   ```bash
-   export HTTP_PROXY=http://proxy.company.com:8080
-   export HTTPS_PROXY=http://proxy.company.com:8080
-   export NO_PROXY=localhost,127.0.0.1,.company.com
-   ```
-
-5. **Open your browser:**
-   Navigate to [http://localhost:3000](http://localhost:3000)
-
-## Usage
+## 📋 Usage Guide
 
 ### Initial Setup
 
@@ -106,123 +125,92 @@ A modern Next.js web application for AWS cost reporting and Security Hub dashboa
    - Your configured AWS profiles will be automatically detected
    - Ensure profiles have necessary permissions
 
-2. **Configure Cost Reporting:**
-   - Go to Configuration → Cost Configuration tab
-   - Set up report preferences, profiles, service filters, and date ranges
-   - Select specific AWS services or leave empty to show all services
-   - Configuration will be saved to the unified `config.yaml` file
-
-3. **Configure Security Hub:**
-   - Go to Configuration → Security Configuration tab
-   - Select profiles and home region for Security Hub
-   - Configuration will be saved to the unified `config.yaml` file
-
-4. **Configure Proxy (Optional):**
-   - Go to Configuration → Proxy Settings tab
-   - Enable proxy and configure URL, credentials, and exclusions
-   - Alternatively, use environment variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`)
-
-5. **Configure SSO (Enterprise):**
+2. **Configure Multi-Provider SSO (Enterprise):**
    - Go to Configuration → SSO Configuration tab
-   - Configure your SSO provider settings (start URL, provider name, authentication type)
-   - Click "SSO Login & Get Roles" to authenticate and discover available AWS roles
-   - Select the AWS roles you want to add from the interactive modal
-   - Roles are automatically saved to your configuration for future use
-   - Configure security settings (SSL verification, token encryption, session binding)
-   - Set up enterprise proxy settings if required
+   - Add multiple SSO providers (SAML, AWS SSO, OIDC)
+   - Configure provider-specific settings and security options
+   - Test authentication and role discovery for each provider
+   - Profiles are automatically synchronized across all application components
+
+3. **Configure Cost/Security Reporting:**
+   - Go to Configuration → Cost/Security Configuration tabs
+   - Set up report preferences, profiles, service filters, and date ranges
+   - Configuration saved to unified `config.yaml` file
 
 ### Data Loading Behavior
 
-The application implements controlled data loading to prevent unwanted API calls:
+The application implements **controlled data loading** to prevent unwanted API calls:
 
 - **Parameter Changes**: Modifying profiles, date ranges, or granularity settings does NOT trigger automatic data loading
 - **Manual Loading**: Data is fetched only when you explicitly click the "Generate Report" button
-- **Real-Time Filters**: Filters like tax/support exclusions and service selections update the display immediately without API calls
+- **Parameter Capture**: Query parameters are captured at button click time and frozen until next click
+- **Real-Time Filters**: Filters like tax/support exclusions update display immediately without API calls
 - **Fresh Data**: No caching is used - each button click fetches fresh data from AWS APIs
-- **Profile Persistence**: All selected profiles remain visible in tabs even when filtered data shows 0 for that profile
+- **Profile Persistence**: All selected profiles remain visible in tabs even when filtered data shows 0
 
-### Generating Reports
+### Multi-Provider SSO Workflow
 
-#### Cost Reports
-1. Navigate to "Cost Reports" page
-2. **Profile Selection:** Choose from configured AWS profiles (including SSO-managed profiles)
-3. **Date Range:** Select start and end dates using the date picker
-4. **Granularity Options:** Choose data aggregation level:
-   - **Hourly**: Detailed hourly cost breakdown
-   - **Daily**: Day-by-day cost analysis (recommended for most use cases)
-   - **Monthly**: Monthly cost summaries
-   - **Annual**: Client-side aggregation of monthly data into yearly overview
-5. **Service Filtering:**
-   - **Searchable Dropdown**: Select from 60+ predefined AWS services with search functionality
-   - **Multi-Select**: Choose multiple services for focused analysis
-   - **Selective Display**: Only selected services appear in reports and visualizations
-   - **All Services Option**: Leave services empty to display all AWS service costs
-6. **Display Options:**
-   - **Tax Exclusion**: Toggle to exclude/include tax charges in reports
-   - **Support Exclusion**: Toggle to exclude/include AWS support costs
-   - **Real-Time Filtering**: Changes apply instantly without re-fetching data
-7. Click "Generate Report" to load data and generate comprehensive cost analysis
-8. **Multi-View Analysis:**
-   - **Account Totals Tab**: Cost per account across time periods
-   - **Service Totals Tab**: Cost per service across all accounts
-   - **Individual Profile Tabs**: Per-account service breakdown with dedicated tabs
-9. **Table Features:**
-   - **No Pagination**: Complete data displayed with horizontal scrolling
-   - **Column Sorting**: Click any column header to sort (total costs default to descending)
-   - **Fixed Columns**: Service/Account names fixed on left, totals on right
-   - **Summary Rows**: Color-coded total rows always visible at bottom
-10. **Visualizations:** Interactive Chart.js charts with bar and pie chart options for each view
-11. **Export Options:** Multiple formats available via dropdown:
-    - **CSV**: Raw data export
-    - **JSON**: Structured data export
-    - **PDF**: Professional reports with charts and tables
-    - **XLSX**: Excel workbooks with multiple sheets
-    - **HTML**: Self-contained interactive reports
+1. **Provider Configuration:**
+   - Add multiple SSO providers with different authentication methods
+   - Configure provider-specific settings (URLs, credentials, security options)
+   - Test connectivity and authentication for each provider
 
-#### Security Dashboard
-1. Navigate to "Security Hub" page
-2. Select AWS profiles and regions
-3. Click "Generate Report" to load security findings
-4. Use filters to narrow down results by severity, status, or compliance
-5. **Enhanced Table Features:**
-   - Sort by any column (severity levels, total findings, account/region names)
-   - Change page size (10, 20, 50, 100 items) using the dropdown
-   - Jump to specific pages using the quick jumper
-   - Total rows are fixed in table footers for easy reference
-   - Each profile tab maintains its own sorting and pagination preferences
+2. **Role Discovery:**
+   - Authenticate with each provider to discover available AWS roles
+   - Use the interactive Role Selection Modal to choose roles
+   - Profiles are automatically saved and synchronized across the application
 
-## Directory Structure
+3. **Profile Management:**
+   - Edit profile names using inline editing in the SSO Profiles table
+   - Delete profiles with confirmation dialogs
+   - Changes automatically propagate to all profile selectors in the application
+
+## 🏗️ Directory Structure
 
 ```
 src/
-├── app/                    # Next.js App Router pages
-│   ├── dashboard/         # Dashboard pages
-│   ├── cost/             # Cost reporting pages
-│   ├── security/         # Security hub pages
-│   ├── config/           # Configuration pages
-│   └── api/              # API routes
-├── components/           # React components
-├── lib/                 # Shared utilities
-│   ├── aws/            # AWS service integrations
-│   ├── config/         # Configuration management
-│   └── types/          # TypeScript definitions
-└── hooks/              # Custom React hooks
+├── app/                    # Next.js App Router
+│   ├── api/               # API routes
+│   │   ├── aws/           # AWS service endpoints
+│   │   │   ├── profiles/  # Profile management
+│   │   │   └── sso/       # Multi-provider SSO
+│   │   ├── config/        # Configuration management
+│   │   ├── cost/          # Cost reporting APIs
+│   │   └── security/      # Security Hub APIs
+│   ├── cost/              # Cost reporting pages
+│   ├── security/          # Security Hub pages  
+│   └── config/            # Configuration pages
+├── components/            # React components
+│   ├── common/           # Reusable shared components
+│   │   ├── AWSProfileSelector.tsx    # Universal profile selector
+│   │   └── AWSErrorAlert.tsx         # AWS error handling
+│   ├── config/           # Configuration management UI
+│   ├── cost/             # Cost reporting components
+│   ├── security/         # Security Hub components
+│   ├── dashboard/        # Dashboard components
+│   └── layout/           # App-wide layout
+├── lib/                  # Shared utilities
+│   ├── aws/             # AWS service integrations
+│   ├── config/          # Configuration management
+│   ├── providers/       # SSO provider implementations
+│   ├── services/        # Business logic services
+│   └── types/           # TypeScript definitions
+├── hooks/               # Custom React hooks
+│   └── useAWSProfiles.ts # Unified profile management hook
+└── electron/            # Desktop application
+    ├── main.js          # Electron main process
+    └── preload.js       # Secure IPC bridge
 ```
 
-## Configuration Files
+## ⚙️ Configuration System
 
-The application uses a **unified configuration system** that automatically migrates and consolidates all settings into a single file:
+### Unified Configuration Architecture
 
-### Unified Configuration (Recommended)
-- **Desktop App**: `{userData}/config.yaml` - All application settings in one file
-- **Web App**: `config.yaml` - Single configuration file for all settings
-
-### Configuration Structure
-The unified configuration file contains all application settings:
+The application uses a **single configuration file approach** with automatic migration:
 
 ```yaml
 version: "1.0"
-lastModified: "2024-01-15T10:30:00.000Z"
+lastModified: "2024-07-24T10:30:00.000Z"
 
 # Cost reporting configuration
 cost:
@@ -239,6 +227,42 @@ security:
   profiles: ["profile1", "profile2"]
   home_region: "us-east-1"
 
+# Multi-Provider SSO configuration
+multiProviderSSO:
+  version: "1.0"
+  providers:
+    - id: "corporate-saml"
+      type: "SAML"
+      name: "Corporate SAML"
+      settings:
+        startUrl: "https://sso.company.com/saml/login"
+        realm: "corporate"
+        module: "SAML"
+        sessionDuration: 43200
+        profiles:
+          - profileName: "prod-admin"
+            accountId: "123456789012"
+            roleName: "AdminRole"
+            region: "us-east-1"
+    - id: "aws-identity-center"
+      type: "AWS_SSO"
+      name: "AWS Identity Center"
+      settings:
+        startUrl: "https://d-1234567890.awsapps.com/start"
+        region: "us-east-1"
+        sessionDuration: 28800
+        profiles:
+          - profileName: "dev-developer"
+            accountId: "987654321098"
+            roleName: "DeveloperRole"
+            region: "us-west-2"
+  globalSettings:
+    security:
+      sslVerification: true
+      tokenEncryption: true
+      sessionBinding: true
+      auditLogging: true
+
 # Proxy configuration
 proxy:
   enabled: true
@@ -246,124 +270,88 @@ proxy:
   username: "proxy-user"
   password: "proxy-pass"
   no_proxy: ["localhost", "*.internal.com"]
-
-# SSO configuration (Enterprise)
-sso:
-  enabled: true
-  providerName: "Corporate SSO"
-  startUrl: "https://websso-company.com/saml/login"
-  authenticationType: "SoftID"  # Options: SoftID, LDAP, OAuth2
-  sessionDuration: 36000
-  region: "eu-west-1"
-  samlDestination: "urn:amazon:webservices"
-  
-  # Provider-specific settings
-  providerSettings:
-    realm: "multiauth"
-    module: "SoftID"
-    gotoUrl: "https://websso-company.com/gardianwebsso/saml2/jsp/idpSSOInit.jsp"
-    metaAlias: "/multiauth/idp6-20261219"
-  
-  # Enterprise proxy configuration for SSO
-  proxy:
-    enabled: true
-    url: "https://proxy.company.com:3131"
-  
-  # Security settings
-  security:
-    sslVerification: true
-    tokenEncryption: true
-    sessionBinding: true
-    auditLogging: true
-  
-  # AWS role profiles (auto-discovered via SSO login)
-  profiles:
-    - name: "prod-account-admin"
-      accountId: "123456789012"
-      roleName: "AdminRole"
-      roleArn: "arn:aws:iam::123456789012:role/AdminRole"
-      principalArn: "arn:aws:iam::123456789012:saml-provider/Corporate"
-      description: "Production Account - Admin Role"
-      region: "eu-west-1"
-      type: "sso"
-    - name: "dev-account-developer"
-      accountId: "987654321098"
-      roleName: "DeveloperRole"
-      roleArn: "arn:aws:iam::987654321098:role/DeveloperRole"
-      principalArn: "arn:aws:iam::987654321098:saml-provider/Corporate"
-      description: "Development Account - Developer Role"
-      region: "eu-west-1"
-      type: "sso"
 ```
 
-
 ### Configuration Persistence
-- **Desktop Application**: Configurations are stored in `{userData}/config.yaml` and persist across app updates and reinstalls
-- **Web Application**: Configurations are stored in the working directory as `config.yaml`
-- **Environment Variables**: Proxy settings can also be configured via `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables
+- **Desktop Application**: `{userData}/config.yaml` persists across app updates
+- **Web Application**: `config.yaml` in working directory
+- **Environment Variables**: Proxy settings via `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`
 
 ### Configuration Locations by Platform
 - **macOS**: `~/Library/Application Support/aws-reports-web-app/config.yaml`
 - **Windows**: `%APPDATA%\aws-reports-web-app\config.yaml`
 - **Linux**: `~/.config/aws-reports-web-app/config.yaml`
 
-## API Endpoints
+## 🔌 API Endpoints
+
+### Profile Management
+- `GET /api/aws/profiles/unified` - Get unified CLI + SSO profiles with dual type support
+- `POST /api/aws/test-connectivity` - Test AWS connectivity for profiles
+
+### Multi-Provider SSO
+- `GET/POST /api/aws/sso/multi-provider/config` - Multi-provider SSO configuration management
+- `POST /api/aws/sso/multi-provider/authenticate` - Provider-specific authentication and role discovery
+- `GET /api/aws/sso/multi-provider/providers` - Provider discovery and schema information
+- `POST /api/aws/sso/multi-provider/update-roles` - Update provider roles with merge logic
 
 ### Cost Reporting
-- `GET /api/cost/data` - Fetch cost data
-- `GET /api/cost/export` - Export cost data
+- `GET /api/cost/data` - Fetch cost data with controlled loading
+- `GET /api/cost/export` - Export cost data in multiple formats
 
 ### Security Hub
 - `GET /api/security/findings` - Fetch security findings
 - `GET /api/security/summary` - Get security summary
+- `GET /api/security/export` - Export security data
 
-### Configuration
+### Configuration Management
 - `GET/PUT /api/config/cost` - Cost configuration
 - `GET/PUT /api/config/security` - Security configuration
+- `GET/PUT /api/config/proxy` - Proxy configuration
 
 ### System
-- `GET /api/aws/profiles` - List AWS profiles
-- `POST /api/aws/test-connectivity` - Test AWS connectivity for profiles
-- `GET /api/health` - Health check (includes proxy configuration status)
+- `GET /api/health` - Health check with proxy configuration status
 
-## Development
+## 🛠️ Development
 
-### Building for Production
+### Development Commands
 ```bash
-npm run build
-npm start
+# Web Development
+npm run dev                    # Next.js with Turbopack (faster)
+npm run dev:webpack           # Next.js with Webpack
+npm run build                 # Production build
+npm run start                 # Start production server
+npm run lint                  # Code linting
+
+# Desktop Development
+npm run electron:dev          # Desktop app in development
+npm run electron:build        # Cross-platform desktop builds
+npm run electron:build:mac    # macOS ARM64 build
+npm run electron:build:win    # Windows x64 build
+npm run electron:build:linux  # Linux x64 build
+npm run electron:build:all    # All platforms
+
+# Maintenance
+npm run clean                 # Clean install dependencies
+npm run dev:clean            # Clean install + development
 ```
 
-### Running Tests
-```bash
-npm test
-```
+### Technology Stack
+- **Frontend**: Next.js 15, React 18, TypeScript 5, Ant Design 5
+- **State Management**: TanStack Query (React Query), Custom hooks
+- **AWS Integration**: AWS SDK v3 with modular imports
+- **Desktop**: Electron 37 with secure IPC
+- **Data Visualization**: Chart.js with react-chartjs-2
+- **Build Tools**: Turbopack (dev), Webpack (legacy), Electron Builder
 
-### Linting
-```bash
-npm run lint
-```
+### Cross-Platform Build System
+- **Sharp Dependency Handling**: Automatic rebuilding for cross-platform compatibility
+- **Performance Tracking**: Comprehensive build timing and performance metrics
+- **Multi-Platform Support**: macOS ARM64, Windows x64, Linux x64
+- **Build Outputs**: DMG, ZIP, EXE, AppImage, DEB, RPM packages
 
-### Clean Installation (if experiencing issues)
-```bash
-npm run clean
-```
+## 🚀 Deployment
 
-This command will:
-- Remove node_modules and package-lock.json
-- Clear npm cache
-- Reinstall all dependencies fresh
-
-### Development Options
-```bash
-npm run dev          # Development with Turbopack (faster builds)
-npm run dev:webpack  # Development with Webpack (more compatible)
-npm run dev:clean    # Clean install + development with Turbopack
-```
-
-## Deployment
-
-The application can be deployed as:
+### Deployment Options
 
 1. **Standalone Next.js Application:**
    ```bash
@@ -375,10 +363,6 @@ The application can be deployed as:
    ```bash
    npm run electron:build:all
    ```
-   Generates installers for:
-   - **macOS**: DMG installer and ZIP archive (ARM64)
-   - **Windows**: NSIS installer, portable EXE, and ZIP archive (x64)
-   - **Linux**: AppImage, DEB, RPM, and TAR.GZ packages (x64)
 
 3. **Docker Container:**
    ```bash
@@ -386,7 +370,7 @@ The application can be deployed as:
    docker run -p 3000:3000 aws-reports-app
    ```
 
-## Troubleshooting
+## 🔧 Troubleshooting
 
 ### Common Issues
 
@@ -394,50 +378,26 @@ The application can be deployed as:
    - Ensure AWS CLI is configured: `aws configure`
    - Check that `~/.aws/credentials` and `~/.aws/config` files exist
 
-2. **"Failed to fetch cost data"**
-   - Verify AWS credentials have Cost Explorer permissions
-   - Ensure Cost Explorer is enabled in your AWS account
-   - Check that the selected profiles are valid
+2. **"Failed to fetch cost/security data"**
+   - Verify AWS credentials have appropriate permissions
+   - Ensure Cost Explorer/Security Hub is enabled in your AWS account
+   - Check that the selected profiles are valid and have access
 
-3. **"Failed to fetch security findings"**
-   - Verify Security Hub is enabled in the selected regions
-   - Ensure AWS credentials have Security Hub permissions
-   - Check that the selected profiles have access to Security Hub
+3. **Multi-Provider SSO Issues**
+   - Check provider configuration in the SSO Configuration tab
+   - Verify SSO provider health status and connectivity
+   - Review audit logs for authentication failures
+   - Ensure proxy settings are correctly configured if in enterprise environment
 
-4. **Configuration save errors**
-   - The application uses a unified configuration file (`config.yaml`)
-   - The application automatically creates necessary directories
-   - Ensure the application has write permissions to the configuration directory
-   - **Desktop App**: Configurations persist in user data directory across updates
-   - **Web App**: Configurations are stored in the working directory
+4. **Profile Synchronization Issues**
+   - Profile changes automatically propagate across all components
+   - If profiles don't appear updated, check browser console for errors
+   - React Query cache invalidation ensures cross-component synchronization
 
-5. **Ant Design message warnings**
-   - The application properly uses Ant Design's App component for message context
-   - No static message method warnings should appear in production
-
-6. **React version compatibility warnings**
-   - Ensure you're using React 18.x for full Ant Design v5 compatibility
-   - Run `npm ls react` to check your React version
-   - If you see intermittent warnings, run `npm run clean` to clear cache and reinstall dependencies
-
-7. **AWS profile connection errors**
-   - The application displays detailed error messages for AWS connection issues
-   - Check the dashboard for connection status and troubleshooting guidance
-   - Error messages include specific steps to resolve credential problems
-   - Special handling for SSO session expiration with exact commands to fix
-
-8. **HTTP Proxy connection issues**
-   - Check the health endpoint at `/api/health` to see proxy configuration status
-   - Verify HTTP_PROXY, HTTPS_PROXY environment variables are set correctly
-   - Ensure NO_PROXY includes localhost and internal domains
-   - Proxy configuration is automatically detected and applied to all AWS SDK calls
-   - Console logs will show "Using HTTP proxy" messages when proxy is active
-
-9. **Table pagination and sorting issues**
-   - Each table maintains its own pagination and sorting state independently
-   - Page size changes are applied immediately and persist during the session
-   - Total rows are always displayed in table footers and don't participate in sorting
-   - If pagination controls appear disabled, ensure there's enough data to paginate
+5. **Desktop Application Issues**
+   - Configurations persist in userData directory across updates
+   - Ensure the application has necessary file system permissions
+   - Check that Electron security policies allow required operations
 
 ### AWS Permissions Required
 
@@ -451,26 +411,40 @@ The application can be deployed as:
 - `securityhub:DescribeHub`
 - `securityhub:ListMembers`
 
-## Key Features & Improvements
+#### Multi-Provider SSO
+- `sts:AssumeRoleWithSAML` (for SAML providers)
+- `sso:GetRoleCredentials` (for AWS SSO providers)
+- `sts:AssumeRoleWithWebIdentity` (for OIDC providers)
 
-### Unified Configuration System
-- **Single Configuration File**: All application settings in one unified `config.yaml` file
-- **Comprehensive Coverage**: Includes cost, security, proxy, and SSO configurations in one place
-- **Persistent Storage**: Desktop application configurations survive app updates and reinstalls
-- **Environment Integration**: Supports both file-based configuration and environment variables
-- **Auto-Discovery**: SSO login automatically discovers and configures AWS roles
+## 🎯 Key Architectural Highlights
 
-### Enterprise-Ready SSO Integration
-- **One-Click Authentication**: Login and discover available AWS roles with a single button
-- **Interactive Role Management**: Select and configure multiple AWS roles through intuitive UI
-- **Automatic Configuration**: Selected roles are immediately saved to persistent configuration
-- **Multi-Provider Support**: Compatible with SoftID, LDAP, and OAuth2 authentication systems
-- **Enterprise Security**: Built-in encryption, session binding, and comprehensive audit logging
+### **Enterprise-Ready Features**
+- **Multi-Provider Authentication**: Simultaneous support for multiple SSO providers
+- **Security-First Design**: Token encryption, session binding, comprehensive audit logging
+- **Proxy Support**: Full HTTP/HTTPS proxy integration for enterprise environments
+- **Cross-Platform Desktop**: Native file dialogs, userData directory persistence
+- **Unified Configuration**: Single file approach with automatic migration capabilities
 
-## Support
+### **Performance Optimizations**
+- **Controlled Data Loading**: Prevents unnecessary API calls through manual refresh pattern
+- **Bundle Optimization**: AWS SDK v3 modular imports for optimal bundle size
+- **Client-Side Filtering**: Real-time filtering without backend re-queries
+- **Component Reusability**: Consistent patterns reduce code duplication and improve maintainability
+- **Caching Strategy**: No caching ensures always-fresh data while preventing unwanted requests
+
+### **Developer Experience**
+- **TypeScript Strict Mode**: Comprehensive type safety throughout the application
+- **Hot Reload**: Electron hot reload with Next.js dev server integration
+- **Comprehensive Error Handling**: User-friendly error messages with specific troubleshooting guidance
+- **Consistent Architecture**: Reusable components and patterns across the entire application
+
+This architecture represents a **mature, enterprise-grade AWS management application** with sophisticated multi-provider authentication, controlled data loading patterns, and comprehensive cross-platform support. The application demonstrates strong architectural decisions with reusable components, consistent patterns, and robust error handling throughout.
+
+## 📞 Support
 
 For issues and questions:
 1. Check the troubleshooting section above
 2. Review AWS credentials and permissions
 3. Check the browser console for error messages
 4. Verify AWS services are enabled in your account
+5. Review audit logs for SSO authentication issues

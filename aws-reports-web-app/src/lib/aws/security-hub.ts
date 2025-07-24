@@ -23,8 +23,8 @@ export class SecurityHubService {
     profileType?: 'cli' | 'sso'
   ): Promise<SecurityFinding[]> {
     try {
-      // Use the enhanced credentials manager that supports both CLI and SSO
-      const credentials = await this.credentialsManager.getCredentialsForAnyProfile(profile, profileType);
+      // Use the credentials manager for CLI profiles
+      const credentials = await this.credentialsManager.getCredentialsForProfile(profile);
       const clientConfig = await createAWSClientConfig(region, credentials);
       const client = new SecurityHubClient(clientConfig);
 
