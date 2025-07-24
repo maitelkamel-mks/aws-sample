@@ -5,3 +5,4 @@ securityhub/reports/securityhub-dashboard.html
 aws-reports-web-app/finops-cost-report/config.yaml
 aws-reports-web-app/securityhub/config.yaml
 aws-reports-installer
+aws-reports-web-app/config.yaml
