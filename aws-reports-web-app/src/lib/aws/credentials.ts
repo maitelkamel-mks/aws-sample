@@ -167,6 +167,7 @@ export class AWSCredentialsManager {
 
   /**
    * Get SSO credentials from active sessions if available and valid
+   * Implements on-demand session creation for improved UX
    */
   private async getSSOCredentialsForProfile(profileName: string): Promise<AwsCredentialIdentity | null> {
     try {
@@ -175,19 +176,13 @@ export class AWSCredentialsManager {
       
       console.log(`Checking SSO credentials for profile: ${profileName} - Found ${allSessions.size} provider(s) with sessions`);
       
-      // Debug: Log all session profile names
+      // First, look for existing active session for this profile
       for (const [providerId, sessions] of allSessions) {
-        const profileNames = sessions.map(s => s.profileName);
-        console.log(`Provider ${providerId} session profiles: [${profileNames.join(', ')}]`);
-      }
-      
-      // Look for active session for this profile
-      for (const [, sessions] of allSessions) {
         for (const session of sessions) {
           if (session.profileName === profileName) {
             // Check if session is still valid (not expired)
             if (session.expiresAt && new Date() < session.expiresAt) {
-              console.log(`Using valid SSO session for profile: ${profileName}`);
+              console.log(`Using existing valid SSO session for profile: ${profileName}`);
               return {
                 accessKeyId: session.accessKeyId,
                 secretAccessKey: session.secretAccessKey,
@@ -196,15 +191,24 @@ export class AWSCredentialsManager {
               };
             } else {
               console.log(`SSO session expired for profile: ${profileName}, expired at: ${session.expiresAt}`);
+              // Remove expired session
+              registry.removeSession(providerId, session.sessionId);
             }
           }
         }
       }
 
-      // If no session found, try syncing sessions with current configuration
+      // If no existing session, try to create one on-demand
+      console.log(`No active session found for ${profileName}, attempting on-demand creation...`);
+      const createdCredentials = await this.createOnDemandSSOSession(profileName);
+      if (createdCredentials) {
+        return createdCredentials;
+      }
+
+      // If on-demand creation failed, try syncing sessions with current configuration
       // This handles the case where profile names were updated in config
       if (allSessions.size > 0) {
-        console.log(`No session found for ${profileName}, attempting to sync with configuration...`);
+        console.log(`On-demand creation failed, attempting to sync with configuration...`);
         await registry.syncSessionsWithConfig();
         
         // Try again after sync
@@ -230,6 +234,111 @@ export class AWSCredentialsManager {
       return null;
     } catch (error) {
       console.warn(`Failed to check SSO credentials for profile ${profileName}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Create an on-demand SSO session for a profile when first accessed
+   * This improves authentication UX by not creating all sessions upfront
+   */
+  private async createOnDemandSSOSession(profileName: string): Promise<AwsCredentialIdentity | null> {
+    try {
+      console.log(`Creating on-demand SSO session for profile: ${profileName}`);
+      
+      // Load multi-provider SSO configuration to find the profile
+      const { ConfigManager } = await import('../config');
+      const configManager = ConfigManager.getInstance();
+      const ssoConfig = await configManager.loadMultiProviderSSOConfig();
+      
+      if (!ssoConfig?.providers) {
+        console.log('No SSO providers configured');
+        return null;
+      }
+
+      // Find which provider contains this profile
+      let targetProvider: any = null;
+      let targetProfile: any = null;
+
+      for (const provider of ssoConfig.providers) {
+        if (provider.settings?.profiles) {
+          const profile = provider.settings.profiles.find((p: any) => p.profileName === profileName);
+          if (profile) {
+            targetProvider = provider;
+            targetProfile = profile;
+            break;
+          }
+        }
+      }
+
+      if (!targetProvider || !targetProfile) {
+        console.log(`Profile ${profileName} not found in SSO configuration`);
+        return null;
+      }
+
+      // Check if we have a master token for this provider
+      const registry = SSOProviderRegistry.getInstance();
+      const providerSessions = registry.getActiveSessions(targetProvider.id);
+      const masterSession = providerSessions.find(session => session.metadata?.isMasterToken);
+
+      if (!masterSession?.metadata?.accessToken) {
+        console.log(`No master SSO token available for provider ${targetProvider.id}. Re-authentication required.`);
+        return null;
+      }
+
+      // Create the session using the master token
+      const { SSOClient, GetRoleCredentialsCommand } = await import('@aws-sdk/client-sso');
+      const ssoClient = new SSOClient({ 
+        region: targetProvider.settings?.region || masterSession.metadata.region || 'us-east-1' 
+      });
+
+      console.log(`Getting SSO credentials for profile: ${profileName} (${targetProfile.accountId}/${targetProfile.roleName})`);
+      
+      const getRoleCredentialsCommand = new GetRoleCredentialsCommand({
+        accessToken: masterSession.metadata.accessToken,
+        accountId: targetProfile.accountId,
+        roleName: targetProfile.roleName,
+      });
+
+      const credentialsResponse = await ssoClient.send(getRoleCredentialsCommand);
+
+      if (credentialsResponse.roleCredentials) {
+        const expiresAt = new Date(credentialsResponse.roleCredentials.expiration || Date.now() + 3600000);
+        
+        // Create and store the session
+        const session = {
+          sessionId: `on-demand-${Date.now()}-${profileName}`,
+          profileName: profileName,
+          providerId: targetProvider.id,
+          providerType: targetProvider.type,
+          accessKeyId: credentialsResponse.roleCredentials.accessKeyId!,
+          secretAccessKey: credentialsResponse.roleCredentials.secretAccessKey!,
+          sessionToken: credentialsResponse.roleCredentials.sessionToken!,
+          expiresAt,
+          createdAt: new Date(),
+          lastRefreshed: new Date(),
+          metadata: {
+            accountId: targetProfile.accountId,
+            roleName: targetProfile.roleName,
+            region: targetProfile.region,
+            createdOnDemand: true
+          }
+        };
+        
+        registry.addSession(targetProvider.id, session);
+        console.log(`Created on-demand SSO session for profile: ${profileName}`);
+
+        return {
+          accessKeyId: session.accessKeyId,
+          secretAccessKey: session.secretAccessKey,
+          sessionToken: session.sessionToken,
+          expiration: session.expiresAt
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`Failed to create on-demand SSO session for profile ${profileName}:`, error);
       return null;
     }
   }

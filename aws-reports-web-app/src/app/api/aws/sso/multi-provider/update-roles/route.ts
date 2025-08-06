@@ -23,78 +23,26 @@ const UpdateRolesRequestSchema = z.object({
 });
 
 /**
- * Create SSO sessions for newly added profiles using existing access token
+ * Validate that we have an active SSO session for on-demand profile creation
+ * No longer creates sessions upfront - they will be created when profiles are actually used
  */
-async function createSessionsForNewProfiles(providerId: string, newProfiles: any[], providerConfig: any) {
-  console.log(`Creating sessions for ${newProfiles.length} newly added profiles`);
+async function validateSSOSessionForNewProfiles(providerId: string, newProfiles: any[]) {
+  console.log(`Validating SSO session availability for ${newProfiles.length} newly added profiles`);
   
-  // Get the registry to access any existing active session for this provider
+  // Get the registry to check for active master token
   const registry = getInitializedRegistry();
   const existingSessions = registry.getActiveSessions(providerId);
   
-  // Find an existing session to get the access token
-  let accessToken: string | undefined;
-  for (const session of existingSessions) {
-    // Check if we can extract an access token from session metadata or the session itself
-    if (session.metadata?.accessToken) {
-      accessToken = session.metadata.accessToken;
-      break;
-    }
+  // Find the master token session
+  const masterSession = existingSessions.find(session => session.metadata?.isMasterToken);
+  
+  if (!masterSession || !masterSession.metadata?.accessToken) {
+    console.warn('No master SSO token available. Profiles will require re-authentication when first accessed.');
+    return false;
   }
   
-  // If no access token in sessions, we can't create new sessions
-  // This would happen if the user imported roles without an active SSO session
-  if (!accessToken) {
-    console.warn('No access token available to create sessions for new profiles. Please re-authenticate.');
-    return;
-  }
-  
-  // Import SSO client for getting role credentials
-  const { SSOClient, GetRoleCredentialsCommand } = await import('@aws-sdk/client-sso');
-  const ssoClient = new SSOClient({ region: providerConfig.settings.region || 'us-east-1' });
-  
-  for (const profileConfig of newProfiles) {
-    try {
-      console.log(`Creating SSO session for new profile: ${profileConfig.profileName}`);
-      
-      // Get AWS credentials using SSO access token
-      const getRoleCredentialsCommand = new GetRoleCredentialsCommand({
-        accessToken: accessToken,
-        accountId: profileConfig.accountId,
-        roleName: profileConfig.roleName,
-      });
-      
-      const credentialsResponse = await ssoClient.send(getRoleCredentialsCommand);
-      
-      if (credentialsResponse.roleCredentials) {
-        const expiresAt = new Date(credentialsResponse.roleCredentials.expiration || Date.now() + 3600000);
-        
-        const session = {
-          sessionId: `session-${Date.now()}-${profileConfig.profileName}`,
-          profileName: profileConfig.profileName, // Use the configured profile name
-          providerId,
-          providerType: providerConfig.type,
-          accessKeyId: credentialsResponse.roleCredentials.accessKeyId!,
-          secretAccessKey: credentialsResponse.roleCredentials.secretAccessKey!,
-          sessionToken: credentialsResponse.roleCredentials.sessionToken!,
-          expiresAt,
-          createdAt: new Date(),
-          lastRefreshed: new Date(),
-          metadata: {
-            accountId: profileConfig.accountId,
-            roleName: profileConfig.roleName,
-            region: profileConfig.region,
-            accessToken: accessToken // Store access token for future use
-          }
-        };
-        
-        registry.addSession(providerId, session);
-        console.log(`Created SSO session for new profile: ${profileConfig.profileName}`);
-      }
-    } catch (credError) {
-      console.error(`Failed to get credentials for new profile ${profileConfig.profileName}:`, credError);
-    }
-  }
+  console.log(`Master SSO token available for provider ${providerId}. New profiles will have sessions created on-demand.`);
+  return true;
 }
 
 // POST /api/aws/sso/multi-provider/update-roles - Update provider with selected roles
@@ -152,12 +100,13 @@ export async function POST(request: NextRequest) {
     // Save the updated configuration
     await configManager.updateProvider(providerId, updatedProviderConfig);
 
-    // Create SSO sessions for newly added profiles
+    // Validate SSO session availability for newly added profiles
+    // Sessions will be created on-demand when profiles are actually used
     if (newProfiles.length > 0) {
       try {
-        await createSessionsForNewProfiles(providerId, newProfiles, providerConfig);
-      } catch (sessionError) {
-        console.warn(`Failed to create sessions for new profiles: ${sessionError}`);
+        await validateSSOSessionForNewProfiles(providerId, newProfiles);
+      } catch (validationError) {
+        console.warn(`Failed to validate SSO session for new profiles: ${validationError}`);
         // Continue - configuration was saved successfully
       }
     }

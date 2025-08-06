@@ -277,7 +277,7 @@ export default function MultiProviderProfilesDisplay() {
                     setCurrentProviderName(completeResult.data.providerType || 'AWS SSO');
                     setCurrentProviderId(values.providerId); // Track which provider is being used
                     setRoleSelectionVisible(true);
-                    message.success(`Discovered ${roles.length} AWS roles. Please select which ones to import.`);
+                    message.success(`Authentication completed! Discovered ${roles.length} AWS roles. Profile sessions will be created on-demand when first used.`);
                   } else {
                     message.warning('Authentication completed but no roles were discovered.');
                   }
@@ -369,7 +369,7 @@ export default function MultiProviderProfilesDisplay() {
       const result = await response.json();
 
       if (result.success) {
-        message.success(`Successfully configured ${result.data.profilesCount} AWS role(s)!`);
+        message.success(`Successfully configured ${result.data.profilesCount} AWS role(s)! Sessions will be created automatically when profiles are first used.`);
         setRoleSelectionVisible(false);
         setDiscoveredRoles([]);
         setCurrentProviderName('');
@@ -769,7 +769,8 @@ export default function MultiProviderProfilesDisplay() {
         <Title level={3}>Multi-Provider AWS Profiles</Title>
         <Paragraph type="secondary">
           Manage AWS profiles across multiple SSO providers. Authenticate with different providers
-          to discover and use AWS roles from various identity sources.
+          to discover AWS roles from various identity sources. Profile sessions are created on-demand
+          when first used, providing faster authentication and better performance.
         </Paragraph>
       </div>
 

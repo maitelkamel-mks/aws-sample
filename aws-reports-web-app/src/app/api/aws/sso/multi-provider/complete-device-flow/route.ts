@@ -67,59 +67,32 @@ export async function POST(request: NextRequest) {
       throw new Error(authResult.error || 'Device flow completion failed');
     }
 
-    // Create sessions for each configured profile using SSO credentials
-    const ssoConfig = await configManager.loadMultiProviderSSOConfig();
-    const providerSettings = ssoConfig?.providers.find(p => p.id === providerId);
-    
-    if (providerSettings?.settings?.profiles && authResult.accessToken) {
-      console.log(`Creating sessions for ${providerSettings.settings.profiles.length} configured profiles`);
+    // Store the SSO access token for on-demand session creation
+    // Instead of creating all sessions upfront, we'll create them only when needed
+    if (authResult.accessToken && authResult.sessionId) {
+      console.log('Storing SSO access token for on-demand session creation');
       
-      // Import SSO client for getting role credentials
-      const { SSOClient, GetRoleCredentialsCommand } = await import('@aws-sdk/client-sso');
-      const ssoClient = new SSOClient({ region: providerSettings.settings.region || 'us-east-1' });
-      
-      for (const profileConfig of providerSettings.settings.profiles) {
-        try {
-          console.log(`Getting SSO credentials for profile: ${profileConfig.profileName}`);
-          
-          // Get AWS credentials using SSO access token
-          const getRoleCredentialsCommand = new GetRoleCredentialsCommand({
-            accessToken: authResult.accessToken,
-            accountId: profileConfig.accountId,
-            roleName: profileConfig.roleName,
-          });
-          
-          const credentialsResponse = await ssoClient.send(getRoleCredentialsCommand);
-          
-          if (credentialsResponse.roleCredentials) {
-            const expiresAt = new Date(credentialsResponse.roleCredentials.expiration || Date.now() + 3600000);
-            
-            const session = {
-              sessionId: `${authResult.sessionId}-${profileConfig.profileName}`,
-              profileName: profileConfig.profileName, // Use the configured profile name
-              providerId,
-              providerType: providerConfig.type,
-              accessKeyId: credentialsResponse.roleCredentials.accessKeyId!,
-              secretAccessKey: credentialsResponse.roleCredentials.secretAccessKey!,
-              sessionToken: credentialsResponse.roleCredentials.sessionToken!,
-              expiresAt,
-              createdAt: new Date(),
-              lastRefreshed: new Date(),
-              metadata: {
-                accountId: profileConfig.accountId,
-                roleName: profileConfig.roleName,
-                region: profileConfig.region,
-                accessToken: authResult.accessToken // Store access token for future use
-              }
-            };
-            
-            registry.addSession(providerId, session);
-            console.log(`Created SSO session for profile: ${profileConfig.profileName}`);
-          }
-        } catch (credError) {
-          console.error(`Failed to get credentials for profile ${profileConfig.profileName}:`, credError);
+      // Create a lightweight master session to store the access token
+      const masterSession = {
+        sessionId: authResult.sessionId,
+        profileName: `${providerId}-master-token`,
+        providerId,
+        providerType: providerConfig.type,
+        accessKeyId: 'on-demand', // Placeholder - real credentials created on demand
+        secretAccessKey: 'on-demand',
+        sessionToken: authResult.accessToken, // Store access token in sessionToken field
+        expiresAt: new Date(Date.now() + 3600000), // Use default expiry, will be updated with real sessions
+        createdAt: new Date(),
+        lastRefreshed: new Date(),
+        metadata: {
+          accessToken: authResult.accessToken,
+          isMasterToken: true,
+          region: providerConfig.settings?.region || 'us-east-1'
         }
-      }
+      };
+      
+      registry.addSession(providerId, masterSession);
+      console.log(`Stored master SSO token for provider: ${providerId}. Sessions will be created on-demand.`);
     }
 
     // Discover roles now that we have tokens
