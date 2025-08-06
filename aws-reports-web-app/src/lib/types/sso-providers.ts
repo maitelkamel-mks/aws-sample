@@ -254,10 +254,11 @@ export interface MultiProviderSSOConfig {
 
 // Provider registry events
 export interface ProviderRegistryEvent {
-  type: 'provider_registered' | 'provider_unregistered' | 'provider_enabled' | 'provider_disabled';
+  type: 'provider_registered' | 'provider_unregistered' | 'provider_enabled' | 'provider_disabled' | 'provider_logout' | 'global_logout';
   providerId: string;
-  providerType: SSOProviderType;
+  providerType: SSOProviderType | 'all';
   timestamp: Date;
+  sessionsCleared?: number;
   metadata?: { [key: string]: any };
 }
 

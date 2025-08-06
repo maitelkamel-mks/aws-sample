@@ -1,5 +1,5 @@
 version: "1.0"
-lastModified: 2025-07-24T15:27:58.953Z
+lastModified: 2025-08-06T15:30:49.378Z
 cost:
   profiles:
     - mks-master
@@ -15,7 +15,7 @@ security:
   home_region: eu-west-1
 multiProviderSSO:
   version: "1.0"
-  lastModified: 2025-07-24T15:27:58.951Z
+  lastModified: 2025-08-06T15:30:49.376Z
   providers:
     - id: sso-mksolutions
       type: AWS_SSO
@@ -68,6 +68,10 @@ multiProviderSSO:
           - profileName: mks-hicham
             accountId: "888744242498"
             roleName: Admin
+            region: eu-west-1
+          - profileName: VizCon-DNSAdministrator
+            accountId: "816069133418"
+            roleName: DNSAdministrator
             region: eu-west-1
       security:
         sslVerification: true

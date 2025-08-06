@@ -1,6 +1,8 @@
 import { fromIni } from '@aws-sdk/credential-providers';
 import { STSClient, GetCallerIdentityCommand, AssumeRoleCommand } from '@aws-sdk/client-sts';
 import { AwsCredentialIdentity } from '@aws-sdk/types';
+import { SSOProviderRegistry } from '../services/sso-provider-registry';
+import { SSOSession } from '../types/sso-providers';
 
 export interface AWSProfile {
   name: string;
@@ -133,17 +135,112 @@ export class AWSCredentialsManager {
     return unifiedProfiles;
   }
 
+  /**
+   * Get credentials for any profile with priority order:
+   * 1. SSO in-memory credentials (if available and valid)
+   * 2. CLI credentials from ~/.aws/ files
+   */
   public async getCredentialsForAnyProfile(profileName: string): Promise<AwsCredentialIdentity> {
+    // First, try to get SSO credentials from active sessions
+    const ssoCredentials = await this.getSSOCredentialsForProfile(profileName);
+    if (ssoCredentials) {
+      console.log(`Using SSO credentials for profile: ${profileName}`);
+      return ssoCredentials;
+    }
+
+    // Fallback to CLI credentials
     try {
+      console.log(`Using CLI credentials for profile: ${profileName}`);
       return await this.getCredentialsForProfile(profileName);
     } catch (error) {
-      throw new Error(`No credentials found for profile ${profileName}. Please check profile configuration.`);
+      throw new Error(`No credentials found for profile ${profileName}. Please check profile configuration or SSO session.`);
     }
   }
 
+  /**
+   * Check if SSO credentials are available and valid for a profile
+   */
+  public async hasSSOCredentials(profileName: string): Promise<boolean> {
+    const ssoCredentials = await this.getSSOCredentialsForProfile(profileName);
+    return ssoCredentials !== null;
+  }
+
+  /**
+   * Get SSO credentials from active sessions if available and valid
+   */
+  private async getSSOCredentialsForProfile(profileName: string): Promise<AwsCredentialIdentity | null> {
+    try {
+      const registry = SSOProviderRegistry.getInstance();
+      const allSessions = registry.getAllActiveSessions();
+      
+      console.log(`Checking SSO credentials for profile: ${profileName} - Found ${allSessions.size} provider(s) with sessions`);
+      
+      // Debug: Log all session profile names
+      for (const [providerId, sessions] of allSessions) {
+        const profileNames = sessions.map(s => s.profileName);
+        console.log(`Provider ${providerId} session profiles: [${profileNames.join(', ')}]`);
+      }
+      
+      // Look for active session for this profile
+      for (const [, sessions] of allSessions) {
+        for (const session of sessions) {
+          if (session.profileName === profileName) {
+            // Check if session is still valid (not expired)
+            if (session.expiresAt && new Date() < session.expiresAt) {
+              console.log(`Using valid SSO session for profile: ${profileName}`);
+              return {
+                accessKeyId: session.accessKeyId,
+                secretAccessKey: session.secretAccessKey,
+                sessionToken: session.sessionToken,
+                expiration: session.expiresAt
+              };
+            } else {
+              console.log(`SSO session expired for profile: ${profileName}, expired at: ${session.expiresAt}`);
+            }
+          }
+        }
+      }
+
+      // If no session found, try syncing sessions with current configuration
+      // This handles the case where profile names were updated in config
+      if (allSessions.size > 0) {
+        console.log(`No session found for ${profileName}, attempting to sync with configuration...`);
+        await registry.syncSessionsWithConfig();
+        
+        // Try again after sync
+        const syncedSessions = registry.getAllActiveSessions();
+        for (const [, sessions] of syncedSessions) {
+          for (const session of sessions) {
+            if (session.profileName === profileName) {
+              // Check if session is still valid (not expired)
+              if (session.expiresAt && new Date() < session.expiresAt) {
+                console.log(`Using synced SSO session for profile: ${profileName}`);
+                return {
+                  accessKeyId: session.accessKeyId,
+                  secretAccessKey: session.secretAccessKey,
+                  sessionToken: session.sessionToken,
+                  expiration: session.expiresAt
+                };
+              }
+            }
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      console.warn(`Failed to check SSO credentials for profile ${profileName}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Validate any profile using priority-based credential resolution
+   */
   public async validateAnyProfile(profileName: string): Promise<ConnectivityResult> {
     try {
-      const credentials = await this.getCredentialsForProfile(profileName);
+      // Use the priority-based credential resolution
+      const credentials = await this.getCredentialsForAnyProfile(profileName);
       const stsClient = new STSClient({
         credentials,
         region: 'us-east-1'

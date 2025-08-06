@@ -23,8 +23,8 @@ export class SecurityHubService {
     profileType?: 'cli' | 'sso'
   ): Promise<SecurityFinding[]> {
     try {
-      // Use the credentials manager for CLI profiles
-      const credentials = await this.credentialsManager.getCredentialsForProfile(profile);
+      // Use priority-based credential resolution (SSO first, CLI fallback)
+      const credentials = await this.credentialsManager.getCredentialsForAnyProfile(profile);
       const clientConfig = await createAWSClientConfig(region, credentials);
       const client = new SecurityHubClient(clientConfig);
 

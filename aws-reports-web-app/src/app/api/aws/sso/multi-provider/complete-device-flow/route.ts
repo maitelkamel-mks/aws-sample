@@ -67,24 +67,60 @@ export async function POST(request: NextRequest) {
       throw new Error(authResult.error || 'Device flow completion failed');
     }
 
-    // Create an active session for successful authentication
-    const expiresAt = new Date(Date.now() + 3600000); // 1 hour from now (should use actual token expiry)
-    const session = {
-      sessionId: authResult.sessionId || `session-${Date.now()}`,
-      profileName: `${providerId}-sso-session`,
-      providerId,
-      providerType: providerConfig.type,
-      accessKeyId: authResult.accessKeyId || 'temp-access-key',
-      secretAccessKey: authResult.secretAccessKey || 'temp-secret-key', 
-      sessionToken: authResult.sessionToken || authResult.accessToken || 'temp-session-token',
-      expiresAt,
-      createdAt: new Date(),
-      lastRefreshed: new Date()
-    };
+    // Create sessions for each configured profile using SSO credentials
+    const ssoConfig = await configManager.loadMultiProviderSSOConfig();
+    const providerSettings = ssoConfig?.providers.find(p => p.id === providerId);
     
-    // Add session to registry to track authentication status
-    registry.addSession(providerId, session);
-    console.log(`Added active session for provider ${providerId}`);
+    if (providerSettings?.settings?.profiles && authResult.accessToken) {
+      console.log(`Creating sessions for ${providerSettings.settings.profiles.length} configured profiles`);
+      
+      // Import SSO client for getting role credentials
+      const { SSOClient, GetRoleCredentialsCommand } = await import('@aws-sdk/client-sso');
+      const ssoClient = new SSOClient({ region: providerSettings.settings.region || 'us-east-1' });
+      
+      for (const profileConfig of providerSettings.settings.profiles) {
+        try {
+          console.log(`Getting SSO credentials for profile: ${profileConfig.profileName}`);
+          
+          // Get AWS credentials using SSO access token
+          const getRoleCredentialsCommand = new GetRoleCredentialsCommand({
+            accessToken: authResult.accessToken,
+            accountId: profileConfig.accountId,
+            roleName: profileConfig.roleName,
+          });
+          
+          const credentialsResponse = await ssoClient.send(getRoleCredentialsCommand);
+          
+          if (credentialsResponse.roleCredentials) {
+            const expiresAt = new Date(credentialsResponse.roleCredentials.expiration || Date.now() + 3600000);
+            
+            const session = {
+              sessionId: `${authResult.sessionId}-${profileConfig.profileName}`,
+              profileName: profileConfig.profileName, // Use the configured profile name
+              providerId,
+              providerType: providerConfig.type,
+              accessKeyId: credentialsResponse.roleCredentials.accessKeyId!,
+              secretAccessKey: credentialsResponse.roleCredentials.secretAccessKey!,
+              sessionToken: credentialsResponse.roleCredentials.sessionToken!,
+              expiresAt,
+              createdAt: new Date(),
+              lastRefreshed: new Date(),
+              metadata: {
+                accountId: profileConfig.accountId,
+                roleName: profileConfig.roleName,
+                region: profileConfig.region,
+                accessToken: authResult.accessToken // Store access token for future use
+              }
+            };
+            
+            registry.addSession(providerId, session);
+            console.log(`Created SSO session for profile: ${profileConfig.profileName}`);
+          }
+        } catch (credError) {
+          console.error(`Failed to get credentials for profile ${profileConfig.profileName}:`, credError);
+        }
+      }
+    }
 
     // Discover roles now that we have tokens
     let roles: SSOProfile[] = [];

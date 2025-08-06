@@ -323,6 +323,73 @@ export class SSOProviderRegistry extends EventEmitter {
   }
 
   /**
+   * Update session profile name when configuration changes
+   */
+  public updateSessionProfileName(providerId: string, oldProfileName: string, newProfileName: string): boolean {
+    const sessions = this.activeSessions.get(providerId) || [];
+    let updated = false;
+
+    for (const session of sessions) {
+      if (session.profileName === oldProfileName) {
+        session.profileName = newProfileName;
+        session.lastRefreshed = new Date();
+        console.log(`Updated session profile name: ${oldProfileName} → ${newProfileName}`);
+        updated = true;
+      }
+    }
+
+    if (updated) {
+      this.activeSessions.set(providerId, sessions);
+    }
+
+    return updated;
+  }
+
+  /**
+   * Sync all sessions with current configuration profile names
+   */
+  public async syncSessionsWithConfig(): Promise<void> {
+    try {
+      const { ConfigManager } = await import('../config');
+      const configManager = ConfigManager.getInstance();
+      const ssoConfig = await configManager.loadMultiProviderSSOConfig();
+
+      if (!ssoConfig?.providers) return;
+
+      for (const provider of ssoConfig.providers) {
+        if (!provider.settings?.profiles) continue;
+
+        const sessions = this.activeSessions.get(provider.id) || [];
+        const configProfileNames = provider.settings.profiles.map((p: any) => p.profileName);
+
+        // Find sessions that might have outdated profile names
+        for (const session of sessions) {
+          // If session profile name is not in current config, it might be renamed
+          if (!configProfileNames.includes(session.profileName)) {
+            // Try to match by accountId and roleName
+            const matchingProfile = provider.settings.profiles.find((p: any) => 
+              p.accountId === session.metadata?.accountId && 
+              p.roleName === session.metadata?.roleName
+            );
+
+            if (matchingProfile && matchingProfile.profileName !== session.profileName) {
+              console.log(`Syncing session: ${session.profileName} → ${matchingProfile.profileName} (matched by account/role)`);
+              session.profileName = matchingProfile.profileName;
+              session.lastRefreshed = new Date();
+            }
+          }
+        }
+
+        this.activeSessions.set(provider.id, sessions);
+      }
+
+      console.log('Session profile names synced with configuration');
+    } catch (error) {
+      console.error('Failed to sync sessions with configuration:', error);
+    }
+  }
+
+  /**
    * Remove session
    */
   public removeSession(providerId: string, sessionId: string): void {
@@ -369,6 +436,113 @@ export class SSOProviderRegistry extends EventEmitter {
         this.providerStatuses.set(providerId, status);
       }
     }
+  }
+
+  /**
+   * Logout from a specific provider - clears all sessions for that provider
+   */
+  public async logout(providerId: string): Promise<boolean> {
+    try {
+      console.log(`Logging out from provider: ${providerId}`);
+      
+      // Get provider and sessions before clearing
+      const provider = this.getProvider(providerId);
+      const sessions = this.activeSessions.get(providerId) || [];
+      const sessionCount = sessions.length;
+
+      // Clear all sessions for this provider
+      this.activeSessions.set(providerId, []);
+      
+      // Update provider status
+      const status = this.providerStatuses.get(providerId);
+      if (status) {
+        status.activeSessions = 0;
+        status.lastChecked = new Date();
+        this.providerStatuses.set(providerId, status);
+      }
+
+      // Emit logout event
+      this.emit('provider_logout', {
+        type: 'provider_logout',
+        providerId: providerId,
+        providerType: provider?.type || 'unknown',
+        sessionsCleared: sessionCount,
+        timestamp: new Date()
+      } as ProviderRegistryEvent);
+
+      console.log(`Successfully logged out from ${providerId}, cleared ${sessionCount} sessions`);
+      return true;
+    } catch (error) {
+      console.error(`Failed to logout from provider ${providerId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Logout from all providers - clears all active sessions
+   */
+  public async logoutAll(): Promise<boolean> {
+    try {
+      console.log('Logging out from all providers');
+      
+      const totalSessionsCleared = Array.from(this.activeSessions.values())
+        .reduce((sum, sessions) => sum + sessions.length, 0);
+      
+      // Clear all sessions
+      this.activeSessions.clear();
+      
+      // Update all provider statuses
+      for (const [providerId, status] of this.providerStatuses.entries()) {
+        status.activeSessions = 0;
+        status.lastChecked = new Date();
+        this.providerStatuses.set(providerId, status);
+      }
+
+      // Emit global logout event
+      this.emit('global_logout', {
+        type: 'global_logout',
+        providerId: 'all',
+        providerType: 'all',
+        sessionsCleared: totalSessionsCleared,
+        timestamp: new Date()
+      } as ProviderRegistryEvent);
+
+      console.log(`Successfully logged out from all providers, cleared ${totalSessionsCleared} sessions`);
+      return true;
+    } catch (error) {
+      console.error('Failed to logout from all providers:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Clear sessions for a specific profile across all providers
+   */
+  public clearSessionsForProfile(profileName: string): number {
+    let clearedCount = 0;
+    
+    for (const [providerId, sessions] of this.activeSessions.entries()) {
+      const originalLength = sessions.length;
+      const filteredSessions = sessions.filter(s => s.profileName !== profileName);
+      
+      if (filteredSessions.length !== originalLength) {
+        this.activeSessions.set(providerId, filteredSessions);
+        clearedCount += (originalLength - filteredSessions.length);
+        
+        // Update status
+        const status = this.providerStatuses.get(providerId);
+        if (status) {
+          status.activeSessions = filteredSessions.length;
+          this.providerStatuses.set(providerId, status);
+        }
+      }
+    }
+    
+    if (clearedCount > 0) {
+      console.log(`Cleared ${clearedCount} sessions for profile: ${profileName}`);
+    }
+    
+    return clearedCount;
   }
 
   /**

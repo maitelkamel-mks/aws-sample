@@ -316,9 +316,40 @@ export default function MultiProviderProfilesDisplay() {
   };
 
   const handleLogout = async (providerId: string) => {
-    // In real implementation, this would call logout API
-    message.success(`Logged out from ${providerId}`);
-    await loadProfilesAndSessions();
+    try {
+      setLoading(true);
+
+      // Call the logout API
+      const response = await fetch('/api/aws/sso/multi-provider/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          providerId: providerId
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        message.success(result.message || `Successfully logged out from ${providerId}`);
+        
+        // Invalidate related queries to update other components
+        queryClient.invalidateQueries({ queryKey: ['aws-profiles-unified'] });
+        queryClient.invalidateQueries({ queryKey: ['multi-provider-sso-config'] });
+        
+        // Refresh the display to show updated session status
+        await loadProfilesAndSessions();
+      } else {
+        throw new Error(result.error || 'Logout failed');
+      }
+    } catch (error) {
+      console.error(`Logout failed for ${providerId}:`, error);
+      message.error(`Failed to logout from ${providerId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRoleSelectionConfirm = async (selectedRoles: any[]) => {
