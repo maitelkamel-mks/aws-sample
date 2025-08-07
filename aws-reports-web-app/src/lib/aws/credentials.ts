@@ -521,15 +521,25 @@ export class AWSCredentialsManager {
         console.log(`✅ SAML Credential Debug: Using discovered role metadata - Role: ${roleArn}, Principal: ${principalArn}`);
       } else {
         // Try to extract principal ARN from SAML assertion in session metadata
-        const extractedPrincipalArn = await this.extractPrincipalArnFromSAMLAssertion(samlSession.metadata.samlAssertion);
+        const extractedPrincipalArn = await this.extractPrincipalArnFromSAMLAssertion(samlSession.metadata.samlAssertion, targetProfile.accountId);
         
         roleArn = `arn:aws:iam::${targetProfile.accountId}:role/${targetProfile.roleName}`;
         if (extractedPrincipalArn) {
           principalArn = extractedPrincipalArn;
           console.log(`✅ SAML Credential Debug: Using extracted principal ARN from SAML assertion - Role: ${roleArn}, Principal: ${principalArn}`);
         } else {
-          // Final fallback to constructing ARNs
-          principalArn = `arn:aws:iam::${targetProfile.accountId}:saml-provider/WebSSO`;
+          // Final fallback to constructing ARNs - try common SAML provider names
+          const commonProviderNames = ['Gardian_WebSSO', 'WebSSO', 'SAML-Provider', 'IDPSAMLProvider'];
+          let fallbackPrincipalArn = `arn:aws:iam::${targetProfile.accountId}:saml-provider/WebSSO`;
+          
+          for (const providerName of commonProviderNames) {
+            const testPrincipalArn = `arn:aws:iam::${targetProfile.accountId}:saml-provider/${providerName}`;
+            console.log(`⚠️ SAML Credential Debug: Trying fallback principal ARN: ${testPrincipalArn}`);
+            fallbackPrincipalArn = testPrincipalArn;
+            break; // Use the first one for now
+          }
+          
+          principalArn = fallbackPrincipalArn;
           console.log(`⚠️ SAML Credential Debug: Using fallback ARNs - Role: ${roleArn}, Principal: ${principalArn}`);
         }
       }
@@ -588,10 +598,11 @@ export class AWSCredentialsManager {
 
   /**
    * Extract principal ARN from SAML assertion by parsing the role attributes
+   * Finds the principal ARN that matches the target account
    */
-  private async extractPrincipalArnFromSAMLAssertion(samlAssertion: string): Promise<string | null> {
+  private async extractPrincipalArnFromSAMLAssertion(samlAssertion: string, targetAccountId?: string): Promise<string | null> {
     try {
-      console.log(`🔍 SAML Principal Debug: Extracting principal ARN from SAML assertion`);
+      console.log(`🔍 SAML Principal Debug: Extracting principal ARN from SAML assertion for account: ${targetAccountId || 'any'}`);
       
       // Decode SAML assertion
       const decodedSAML = Buffer.from(samlAssertion, 'base64').toString('utf-8');
@@ -604,6 +615,7 @@ export class AWSCredentialsManager {
       const roleAttributes = $('saml\\:Attribute[Name*=\"Role\"], Attribute[Name*=\"Role\"]');
       
       let principalArn: string | null = null;
+      const allPrincipals: { roleArn: string; principalArn: string; accountId: string }[] = [];
       
       roleAttributes.each((_, element) => {
         const attributeValues = $(element).find('saml\\:AttributeValue, AttributeValue');
@@ -614,25 +626,66 @@ export class AWSCredentialsManager {
           // Parse role ARN format: arn:aws:iam::ACCOUNT:role/ROLE,arn:aws:iam::ACCOUNT:saml-provider/PROVIDER
           const parts = roleValue.split(',');
           if (parts.length === 2) {
-            const possibleRoleArn = parts[0].trim();
-            const possiblePrincipalArn = parts[1].trim();
+            const part1 = parts[0].trim();
+            const part2 = parts[1].trim();
             
-            // Check which one is the principal ARN (contains saml-provider)
-            if (possiblePrincipalArn.includes('saml-provider')) {
-              principalArn = possiblePrincipalArn;
-              console.log(`✅ SAML Principal Debug: Found principal ARN in assertion: ${principalArn}`);
-              return false; // break the loop
-            } else if (possibleRoleArn.includes('saml-provider')) {
-              principalArn = possibleRoleArn;
-              console.log(`✅ SAML Principal Debug: Found principal ARN in assertion: ${principalArn}`);
-              return false; // break the loop
+            let roleArn: string | null = null;
+            let currentPrincipalArn: string | null = null;
+            
+            // Determine which part is the role and which is the principal
+            if (part1.includes(':role/')) {
+              roleArn = part1;
+              currentPrincipalArn = part2;
+            } else if (part2.includes(':role/')) {
+              roleArn = part2;
+              currentPrincipalArn = part1;
+            }
+            
+            if (roleArn && currentPrincipalArn && currentPrincipalArn.includes('saml-provider')) {
+              // Extract account ID from the role ARN
+              const roleAccountMatch = roleArn.match(/arn:aws:iam::(\\d+):role/);
+              const principalAccountMatch = currentPrincipalArn.match(/arn:aws:iam::(\\d+):saml-provider/);
+              
+              if (roleAccountMatch && principalAccountMatch) {
+                const roleAccount = roleAccountMatch[1];
+                const principalAccount = principalAccountMatch[1];
+                
+                allPrincipals.push({
+                  roleArn,
+                  principalArn: currentPrincipalArn,
+                  accountId: roleAccount
+                });
+                
+                console.log(`🔍 SAML Principal Debug: Found role/principal pair - Role: ${roleArn} (${roleAccount}), Principal: ${currentPrincipalArn} (${principalAccount})`);
+                
+                // If we have a target account, look for matching principals
+                if (targetAccountId) {
+                  if (roleAccount === targetAccountId) {
+                    // Prefer the principal ARN from the same account as the role
+                    if (principalAccount === targetAccountId) {
+                      principalArn = currentPrincipalArn;
+                      console.log(`✅ SAML Principal Debug: Found matching principal ARN for target account ${targetAccountId}: ${principalArn}`);
+                      return false; // break the loop
+                    } else if (!principalArn) {
+                      // Use this as a fallback even if accounts don't match
+                      principalArn = currentPrincipalArn;
+                      console.log(`⚠️ SAML Principal Debug: Using cross-account principal ARN as fallback: ${principalArn}`);
+                    }
+                  }
+                } else if (!principalArn) {
+                  // No target account specified, use the first one found
+                  principalArn = currentPrincipalArn;
+                  console.log(`✅ SAML Principal Debug: Found principal ARN in assertion: ${principalArn}`);
+                }
+              }
             }
           }
         });
       });
       
       if (!principalArn) {
-        console.log(`🔍 SAML Principal Debug: No principal ARN found in SAML assertion`);
+        console.log(`🔍 SAML Principal Debug: No principal ARN found in SAML assertion for account ${targetAccountId || 'any'}`);
+        console.log(`🔍 SAML Principal Debug: Available principals:`, allPrincipals);
       }
       
       return principalArn;
