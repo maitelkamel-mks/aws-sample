@@ -44,7 +44,7 @@ import {
   CloseOutlined
 } from '@ant-design/icons';
 import { useState, useEffect, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   SSOProfile,
   SSOProviderType,
@@ -195,9 +195,24 @@ export default function MultiProviderProfilesDisplay() {
     }
   }, [message]);
 
+  // Use React Query to load configuration and automatically refresh when cache is invalidated
+  const { data: configData, refetch: refetchConfig } = useQuery({
+    queryKey: ['multi-provider-sso-config'],
+    queryFn: async () => {
+      const response = await fetch('/api/aws/sso/multi-provider/config');
+      const result = await response.json();
+      return result.success ? result.data : null;
+    },
+    staleTime: 0, // Always check for fresh data
+    gcTime: 0, // Don't cache
+  });
+
+  // Load profiles and sessions when config data changes
   useEffect(() => {
-    loadProfilesAndSessions();
-  }, [loadProfilesAndSessions]);
+    if (configData) {
+      loadProfilesAndSessions();
+    }
+  }, [configData, loadProfilesAndSessions]);
 
   const handleAuthenticate = async (providerId: string) => {
     const provider = Object.values(profilesByProvider).find(p => p.provider.id === providerId);
@@ -334,11 +349,11 @@ export default function MultiProviderProfilesDisplay() {
 
       if (result.success) {
         message.success(result.message || `Successfully logged out from ${providerId}`);
-        
+
         // Invalidate related queries to update other components
         queryClient.invalidateQueries({ queryKey: ['aws-profiles-unified'] });
         queryClient.invalidateQueries({ queryKey: ['multi-provider-sso-config'] });
-        
+
         // Refresh the display to show updated session status
         await loadProfilesAndSessions();
       } else {
@@ -374,12 +389,12 @@ export default function MultiProviderProfilesDisplay() {
         setDiscoveredRoles([]);
         setCurrentProviderName('');
         setCurrentProviderId('');
-        
+
         // Invalidate related queries to update other components
         queryClient.invalidateQueries({ queryKey: ['multi-provider-sso-config'] });
         queryClient.invalidateQueries({ queryKey: ['aws-profiles-unified'] });
         queryClient.invalidateQueries({ queryKey: ['sso-profile-detection'] });
-        
+
         await loadProfilesAndSessions(); // Refresh data to show updated profiles
       } else {
         throw new Error(result.error || 'Failed to update roles');
@@ -407,7 +422,7 @@ export default function MultiProviderProfilesDisplay() {
 
     try {
       setLoading(true);
-      
+
       // Get the provider config
       const provider = config?.providers.find(p => p.id === editingProfile.providerId);
       if (!provider) {
@@ -415,8 +430,8 @@ export default function MultiProviderProfilesDisplay() {
       }
 
       // Update the profile name in the provider's settings
-      const updatedProfiles = provider.settings.profiles?.map((profile: any) => 
-        profile.profileName === editingProfile.profileName 
+      const updatedProfiles = provider.settings.profiles?.map((profile: any) =>
+        profile.profileName === editingProfile.profileName
           ? { ...profile, profileName: editingProfile.newName }
           : profile
       ) || [];
@@ -440,15 +455,15 @@ export default function MultiProviderProfilesDisplay() {
       });
 
       const result = await response.json();
-      
+
       if (result.success) {
         message.success('Profile name updated successfully');
         setEditingProfile(null);
-        
+
         // Invalidate caches to refresh data
         queryClient.invalidateQueries({ queryKey: ['multi-provider-sso-config'] });
         queryClient.invalidateQueries({ queryKey: ['aws-profiles-unified'] });
-        
+
         await loadProfilesAndSessions();
       } else {
         throw new Error(result.error || 'Failed to update profile');
@@ -463,7 +478,7 @@ export default function MultiProviderProfilesDisplay() {
   const handleProfileDelete = async (providerId: string, profileName: string) => {
     try {
       setLoading(true);
-      
+
       // Get the provider config
       const provider = config?.providers.find(p => p.id === providerId);
       if (!provider) {
@@ -471,7 +486,7 @@ export default function MultiProviderProfilesDisplay() {
       }
 
       // Remove the profile from the provider's settings
-      const updatedProfiles = provider.settings.profiles?.filter((profile: any) => 
+      const updatedProfiles = provider.settings.profiles?.filter((profile: any) =>
         profile.profileName !== profileName
       ) || [];
 
@@ -494,14 +509,14 @@ export default function MultiProviderProfilesDisplay() {
       });
 
       const result = await response.json();
-      
+
       if (result.success) {
         message.success('Profile deleted successfully');
-        
+
         // Invalidate caches to refresh data
         queryClient.invalidateQueries({ queryKey: ['multi-provider-sso-config'] });
         queryClient.invalidateQueries({ queryKey: ['aws-profiles-unified'] });
-        
+
         await loadProfilesAndSessions();
       } else {
         throw new Error(result.error || 'Failed to delete profile');
@@ -612,7 +627,7 @@ export default function MultiProviderProfilesDisplay() {
                 width: '30%',
                 render: (name, profile) => {
                   const isEditing = editingProfile?.providerId === provider.id && editingProfile?.profileName === name;
-                  
+
                   if (isEditing) {
                     return (
                       <Space.Compact>
@@ -638,7 +653,7 @@ export default function MultiProviderProfilesDisplay() {
                       </Space.Compact>
                     );
                   }
-                  
+
                   return (
                     <Space>
                       <UserOutlined style={{ color: '#52c41a' }} />
@@ -679,11 +694,11 @@ export default function MultiProviderProfilesDisplay() {
                 width: '20%',
                 render: (_, profile) => {
                   const isEditing = editingProfile?.providerId === provider.id && editingProfile?.profileName === profile.name;
-                  
+
                   if (isEditing) {
                     return null; // Actions are shown inline when editing
                   }
-                  
+
                   const items = [
                     {
                       key: 'edit',
@@ -707,16 +722,16 @@ export default function MultiProviderProfilesDisplay() {
                       }
                     }
                   ];
-                  
+
                   return (
                     <Dropdown
                       menu={{ items }}
                       trigger={['click']}
                       placement="bottomRight"
                     >
-                      <Button 
-                        type="text" 
-                        size="small" 
+                      <Button
+                        type="text"
+                        size="small"
                         icon={<MoreOutlined />}
                         onClick={(e) => e.stopPropagation()}
                       />
@@ -748,10 +763,6 @@ export default function MultiProviderProfilesDisplay() {
     );
   };
 
-  const totalProfiles = Object.values(profilesByProvider).reduce((sum, p) => sum + p.profiles.length, 0);
-  const activeProviders = Object.values(profilesByProvider).filter(p => p.sessionStatus === 'active').length;
-  const totalProviders = Object.keys(profilesByProvider).length;
-
   if (loading && Object.keys(profilesByProvider).length === 0) {
     return (
       <Card>
@@ -765,48 +776,6 @@ export default function MultiProviderProfilesDisplay() {
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <Title level={3}>Multi-Provider AWS Profiles</Title>
-        <Paragraph type="secondary">
-          Manage AWS profiles across multiple SSO providers. Authenticate with different providers
-          to discover AWS roles from various identity sources. Profile sessions are created on-demand
-          when first used, providing faster authentication and better performance.
-        </Paragraph>
-      </div>
-
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col span={6}>
-          <Statistic
-            title="Total Providers"
-            value={totalProviders}
-            prefix={<CloudOutlined />}
-          />
-        </Col>
-        <Col span={6}>
-          <Statistic
-            title="Active Providers"
-            value={activeProviders}
-            prefix={<CheckCircleOutlined />}
-            valueStyle={{ color: '#3f8600' }}
-          />
-        </Col>
-        <Col span={6}>
-          <Statistic
-            title="Total Profiles"
-            value={totalProfiles}
-            prefix={<UserOutlined />}
-          />
-        </Col>
-        <Col span={6}>
-          <Statistic
-            title="Active Sessions"
-            value={activeSessions.length}
-            prefix={<LoginOutlined />}
-            valueStyle={{ color: '#1890ff' }}
-          />
-        </Col>
-      </Row>
-
       <Card>
 
         {Object.keys(profilesByProvider).length === 0 ? (

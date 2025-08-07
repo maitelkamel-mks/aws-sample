@@ -60,18 +60,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider 
-        collapsible 
-        collapsed={collapsed} 
+      <Sider
+        collapsible
+        collapsed={collapsed}
         onCollapse={handleCollapse}
         style={{
           background: '#001529',
         }}
         trigger={null}
       >
-        <div style={{ 
-          height: 32, 
-          margin: 16, 
+        <div style={{
+          height: 32,
+          margin: 16,
           background: 'rgba(255, 255, 255, 0.1)',
           borderRadius: '6px',
           display: 'flex',
@@ -91,17 +91,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
         />
       </Sider>
       <Layout>
-        <Header style={{ 
-          padding: '0 16px', 
-          background: '#fff', 
-          display: 'flex', 
+        <Header style={{
+          padding: '0 16px',
+          background: '#fff',
+          display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between'
         }}>
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            <div 
-              style={{ 
-                marginRight: 16, 
+            <div
+              style={{
+                marginRight: 16,
                 cursor: 'pointer',
                 padding: '8px',
                 borderRadius: '4px',
@@ -119,10 +119,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
               {pathname === '/security' && 'Security Hub Dashboard'}
               {pathname === '/config' && 'Configuration'}
             </Title>
-          </div>
-          
-          <div style={{ fontSize: '14px', color: '#666' }}>
-            Multi-Provider SSO available in Configuration
           </div>
         </Header>
         <Content style={{ margin: '24px 16px 0', minHeight: 280 }}>

@@ -221,7 +221,7 @@ export default function MultiProviderSSOConfigForm({ onSave }: MultiProviderSSOC
   const handleProviderDelete = async (providerId: string) => {
     try {
       setLoading(true);
-      
+
       // Call DELETE API to remove provider from config
       const response = await fetch(`/api/aws/sso/multi-provider/config?providerId=${encodeURIComponent(providerId)}`, {
         method: 'DELETE',
@@ -233,12 +233,12 @@ export default function MultiProviderSSOConfigForm({ onSave }: MultiProviderSSOC
         // Update local state only after successful API call
         const updatedProviders = providers.filter(p => p.id !== providerId);
         setProviders(updatedProviders);
-        
+
         // Invalidate related queries to update other components
         queryClient.invalidateQueries({ queryKey: ['multi-provider-sso-config'] });
         queryClient.invalidateQueries({ queryKey: ['aws-profiles-unified'] });
         queryClient.invalidateQueries({ queryKey: ['sso-profile-detection'] });
-        
+
         message.success('Provider successfully removed from configuration');
       } else {
         throw new Error(result.error || 'Failed to remove provider');
@@ -253,27 +253,72 @@ export default function MultiProviderSSOConfigForm({ onSave }: MultiProviderSSOC
 
   const handleProviderModalSave = async (values: ProviderFormData) => {
     try {
+      setLoading(true);
+      
       // Basic client-side validation
       if (!values.id || !values.type || !values.name) {
         message.error('Provider ID, type, and name are required');
         return;
       }
 
+      let updatedProviders: ProviderConfig[];
+
       if (editingProvider) {
         // Update existing provider
-        const updatedProviders = providers.map(p =>
+        updatedProviders = providers.map(p =>
           p.id === editingProvider.id ? values as ProviderConfig : p
         );
         setProviders(updatedProviders);
-        message.success('Provider configuration updated');
       } else {
         // Add new provider
         if (providers.some(p => p.id === values.id)) {
           message.error('Provider ID must be unique');
           return;
         }
-        setProviders([...providers, values as ProviderConfig]);
-        message.success('Provider added to configuration');
+        updatedProviders = [...providers, values as ProviderConfig];
+        setProviders(updatedProviders);
+      }
+
+      // Save the configuration immediately to the backend
+      const multiProviderConfig: MultiProviderSSOConfig = {
+        version: config?.version || '1.0',
+        lastModified: new Date().toISOString(),
+        providers: updatedProviders,
+        defaultProvider: config?.defaultProvider,
+        globalSettings: config?.globalSettings || {
+          security: {
+            sslVerification: true,
+            tokenEncryption: true,
+            sessionBinding: true,
+            auditLogging: true
+          }
+        }
+      };
+
+      // Call API to save configuration
+      const response = await fetch('/api/aws/sso/multi-provider/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ config: multiProviderConfig }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setConfig(multiProviderConfig);
+        if (editingProvider) {
+          message.success('Provider updated and saved successfully');
+        } else {
+          message.success('Provider added and saved successfully');
+        }
+        
+        // Invalidate relevant queries to refresh the UI
+        queryClient.invalidateQueries({ queryKey: ['multi-provider-sso-config'] });
+        queryClient.invalidateQueries({ queryKey: ['aws-profiles-unified'] });
+      } else {
+        throw new Error(result.error || 'Failed to save configuration');
       }
 
       setProviderModalVisible(false);
@@ -281,6 +326,8 @@ export default function MultiProviderSSOConfigForm({ onSave }: MultiProviderSSOC
       setEditingProvider(null);
     } catch (error) {
       message.error(`Failed to save provider: ${error}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -433,13 +480,7 @@ export default function MultiProviderSSOConfigForm({ onSave }: MultiProviderSSOC
 
   return (
     <Card>
-      <div style={{ marginBottom: 16 }}>
-        <Title level={3}>Multi-Provider SSO Configuration</Title>
-        <Paragraph type="secondary">
-          Configure multiple SSO providers (SAML, AWS SSO, OIDC) to enable flexible enterprise authentication
-          across different systems and identity providers.
-        </Paragraph>
-      </div>
+
 
       <Tabs
         activeKey={activeTab}
@@ -450,7 +491,7 @@ export default function MultiProviderSSOConfigForm({ onSave }: MultiProviderSSOC
             label: (
               <span>
                 <SettingOutlined />
-                Providers ({providers.length})
+                &nbsp;Providers ({providers.length})
               </span>
             ),
             children: (
@@ -509,10 +550,10 @@ export default function MultiProviderSSOConfigForm({ onSave }: MultiProviderSSOC
                               <Tag color={provider.type === 'SAML' ? 'blue' : provider.type === 'AWS_SSO' ? 'green' : 'purple'}>
                                 {provider.type}
                               </Tag>
-                              <Badge 
-                                status={getProviderStatusText(provider.id) === 'Ready' ? 'success' : 
-                                       getProviderStatusText(provider.id) === 'Error' ? 'error' : 'default'} 
-                                text={getProviderStatusText(provider.id)} 
+                              <Badge
+                                status={getProviderStatusText(provider.id) === 'Ready' ? 'success' :
+                                  getProviderStatusText(provider.id) === 'Error' ? 'error' : 'default'}
+                                text={getProviderStatusText(provider.id)}
                               />
                             </Space>
                           }
@@ -538,7 +579,7 @@ export default function MultiProviderSSOConfigForm({ onSave }: MultiProviderSSOC
             label: (
               <span>
                 <CheckCircleOutlined />
-                Global Settings
+                &nbsp;Global Settings
               </span>
             ),
             children: (

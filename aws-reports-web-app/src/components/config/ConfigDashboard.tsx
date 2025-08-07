@@ -46,8 +46,6 @@ export default function ConfigDashboard() {
 
   return (
     <div>
-      <Title level={2}>Configuration</Title>
-
       <Card>
         <Tabs defaultActiveKey="1" items={items} />
       </Card>

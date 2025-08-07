@@ -31,7 +31,7 @@ import {
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 interface CLIProfile {
   name: string;
@@ -240,54 +240,10 @@ export default function CLIProfilesDisplay() {
   }
 
   const cliProfiles = profilesData?.cliProfiles || [];
-  const totalProfiles = profilesData?.totalProfiles || 0;
-  const totalSSOProviders = ssoDetectionData?.ssoProviderCount || 0;
   const availableForImport = ssoProviderGroups.filter(group => group.isValid && !group.isAlreadyImported).length;
-  const alreadyImported = ssoProviderGroups.filter(group => group.isAlreadyImported).length;
 
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <Title level={3}>AWS CLI Profiles</Title>
-        <Paragraph type="secondary">
-          Manage AWS CLI profiles from your local configuration. Multiple SSO profiles sharing
-          the same organization are automatically grouped into single providers for easier management.
-        </Paragraph>
-      </div>
-
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col span={6}>
-          <Statistic
-            title="Total CLI Profiles"
-            value={totalProfiles}
-            prefix={<UserOutlined />}
-          />
-        </Col>
-        <Col span={6}>
-          <Statistic
-            title="SSO Organizations"
-            value={totalSSOProviders}
-            prefix={<CloudOutlined />}
-            valueStyle={{ color: '#1890ff' }}
-          />
-        </Col>
-        <Col span={6}>
-          <Statistic
-            title="Available to Import"
-            value={availableForImport}
-            prefix={<PlusOutlined />}
-            valueStyle={{ color: '#3f8600' }}
-          />
-        </Col>
-        <Col span={6}>
-          <Statistic
-            title="Already Imported"
-            value={alreadyImported}
-            prefix={<CheckCircleOutlined />}
-            valueStyle={{ color: '#52c41a' }}
-          />
-        </Col>
-      </Row>
 
       <Card>
         <div style={{ marginBottom: 16 }}>
@@ -323,32 +279,30 @@ export default function CLIProfilesDisplay() {
         ) : (
           <div>
             <List
-              header="Standard CLI Profiles"
               dataSource={cliProfiles}
+              size="small"
               renderItem={(profile: CLIProfile) => (
-                <List.Item>
+                <List.Item style={{ padding: '8px 0' }}>
                   <List.Item.Meta
-                    avatar={<UserOutlined />}
+                    avatar={<UserOutlined style={{ fontSize: 16 }} />}
                     title={
-                      <Space>
-                        <span>{profile.name}</span>
-                        <Tag color="default">CLI</Tag>
+                      <Space size="small">
+                        <span style={{ fontWeight: 500 }}>{profile.name}</span>
+                        {profile.description && (
+                          <Tag color={
+                            profile.description === 'SSO' ? 'blue' :
+                              profile.description === 'Access Keys' ? 'green' :
+                                profile.description === 'Assumed Role' ? 'orange' :
+                                  'default'
+                          }>
+                            {profile.description}
+                          </Tag>
+                        )}
                         {profile.isAuthenticated ? (
                           <Badge status="success" text="Active" />
                         ) : (
                           <Badge status="default" text="Inactive" />
                         )}
-                      </Space>
-                    }
-                    description={
-                      <Space direction="vertical" size="small">
-                        {profile.region && (
-                          <Text type="secondary">Region: {profile.region}</Text>
-                        )}
-                        {profile.accountId && (
-                          <Text type="secondary">Account: {profile.accountId}</Text>
-                        )}
-                        <Text type="secondary">Standard AWS CLI profile</Text>
                       </Space>
                     }
                   />
@@ -362,12 +316,14 @@ export default function CLIProfilesDisplay() {
                 <List
                   header="Detected SSO Organizations"
                   dataSource={ssoProviderGroups}
+                  size="small"
                   renderItem={(providerGroup: EnhancedSSOProviderGroup) => (
                     <List.Item
+                      style={{ padding: '8px 0' }}
                       actions={[
                         providerGroup.isAlreadyImported ? (
                           <Tooltip key="imported" title={`Already imported as provider: ${providerGroup.existingProviderName}`}>
-                            <Button type="link" icon={<CheckCircleOutlined />} style={{ color: '#52c41a' }} disabled>
+                            <Button type="link" icon={<CheckCircleOutlined />} style={{ color: '#52c41a' }} disabled size="small">
                               Already Imported
                             </Button>
                           </Tooltip>
@@ -378,13 +334,14 @@ export default function CLIProfilesDisplay() {
                               icon={<PlusOutlined />}
                               onClick={() => handleCreateSSOProvider(providerGroup)}
                               loading={loading}
+                              size="small"
                             >
                               Import ({providerGroup.profiles.length})
                             </Button>
                           </Tooltip>
                         ) : (
                           <Tooltip key="invalid" title={providerGroup.errors.join(', ')}>
-                            <Button type="link" icon={<ExclamationCircleOutlined />} danger disabled>
+                            <Button type="link" icon={<ExclamationCircleOutlined />} danger disabled size="small">
                               Invalid
                             </Button>
                           </Tooltip>
@@ -394,14 +351,14 @@ export default function CLIProfilesDisplay() {
                       <List.Item.Meta
                         avatar={
                           providerGroup.isValid ? (
-                            <CloudOutlined style={{ color: '#1890ff' }} />
+                            <CloudOutlined style={{ color: '#1890ff', fontSize: 16 }} />
                           ) : (
-                            <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />
+                            <ExclamationCircleOutlined style={{ color: '#ff4d4f', fontSize: 16 }} />
                           )
                         }
                         title={
-                          <Space>
-                            <span>{providerGroup.organizationName}</span>
+                          <Space size="small">
+                            <span style={{ fontWeight: 500 }}>{providerGroup.organizationName}</span>
                             <Tag color="blue">SSO Organization</Tag>
                             <Tag color="green">{providerGroup.profiles.length} profiles</Tag>
                             {providerGroup.isAlreadyImported ? (
@@ -414,28 +371,32 @@ export default function CLIProfilesDisplay() {
                           </Space>
                         }
                         description={
-                          <Space direction="vertical" size="small">
-                            <Text type="secondary">Start URL: {providerGroup.ssoStartUrl}</Text>
-                            <Text type="secondary">SSO Region: {providerGroup.ssoRegion}</Text>
-                            <Text type="secondary">
-                              Profiles: {providerGroup.profiles.map(p => p.profileName).join(', ')}
+                          <div style={{ lineHeight: 1.4 }}>
+                            <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                              <span style={{ fontWeight: 500 }}>Start URL:</span> {providerGroup.ssoStartUrl}
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                              <span style={{ fontWeight: 500 }}>SSO Region:</span> {providerGroup.ssoRegion}
+                            </Text>
+                            <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                              <span style={{ fontWeight: 500 }}>Profiles:</span> {providerGroup.profiles.map(p => p.profileName).join(', ')}
                             </Text>
                             {providerGroup.isAlreadyImported && providerGroup.existingProviderName && (
-                              <Text type="success">
+                              <Text type="success" style={{ fontSize: 12, display: 'block' }}>
                                 <CheckCircleOutlined /> Connected to provider: {providerGroup.existingProviderName}
                               </Text>
                             )}
                             {!providerGroup.isValid && (
-                              <Text type="danger">
+                              <Text type="danger" style={{ fontSize: 12, display: 'block' }}>
                                 <ExclamationCircleOutlined /> {providerGroup.errors.join(', ')}
                               </Text>
                             )}
                             {providerGroup.warnings.length > 0 && (
-                              <Text type="warning">
+                              <Text type="warning" style={{ fontSize: 12, display: 'block' }}>
                                 <InfoCircleOutlined /> {providerGroup.warnings.join(', ')}
                               </Text>
                             )}
-                          </Space>
+                          </div>
                         }
                       />
                     </List.Item>
@@ -465,8 +426,10 @@ export default function CLIProfilesDisplay() {
 
         <List
           dataSource={ssoProviderGroups.filter(group => group.isValid && !group.isAlreadyImported)}
+          size="small"
           renderItem={(providerGroup) => (
             <List.Item
+              style={{ padding: '8px 0' }}
               actions={[
                 <Button
                   key="import"
@@ -480,22 +443,21 @@ export default function CLIProfilesDisplay() {
               ]}
             >
               <List.Item.Meta
-                avatar={<CloudOutlined style={{ color: '#1890ff' }} />}
-                title={providerGroup.organizationName}
+                avatar={<CloudOutlined style={{ color: '#1890ff', fontSize: 16 }} />}
+                title={<span style={{ fontWeight: 500 }}>{providerGroup.organizationName}</span>}
                 description={
-                  <div>
-                    <Text type="secondary">
+                  <div style={{ lineHeight: 1.4 }}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
                       SSO organization with {providerGroup.profiles.length} profile(s)
                     </Text>
-                    <br />
-                    <Text type="secondary">
-                      Will create provider: <Text code>sso-{providerGroup.organizationName.replace(/[^a-zA-Z0-9]/g, '-')}</Text>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                      Will create provider: <Text code style={{ fontSize: 12 }}>sso-{providerGroup.organizationName.replace(/[^a-zA-Z0-9]/g, '-')}</Text>
                     </Text>
-                    <br />
-                    <Text type="secondary">Start URL: {providerGroup.ssoStartUrl}</Text>
-                    <br />
-                    <Text type="secondary">
-                      Profiles: {providerGroup.profiles.map(p => p.profileName).join(', ')}
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                      <span style={{ fontWeight: 500 }}>Start URL:</span> {providerGroup.ssoStartUrl}
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
+                      <span style={{ fontWeight: 500 }}>Profiles:</span> {providerGroup.profiles.map(p => p.profileName).join(', ')}
                     </Text>
                   </div>
                 }

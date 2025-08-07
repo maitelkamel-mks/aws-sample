@@ -136,6 +136,123 @@ export class AWSCredentialsManager {
   }
 
   /**
+   * Get detailed information about CLI profiles including authentication method
+   */
+  public async getDetailedCLIProfiles(): Promise<AWSProfile[]> {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      const os = await import('os');
+      
+      const credentialsPath = path.join(os.homedir(), '.aws', 'credentials');
+      const configPath = path.join(os.homedir(), '.aws', 'config');
+      
+      const profiles = new Map<string, AWSProfile>();
+      
+      // Parse credentials file for profile names and access keys
+      if (fs.existsSync(credentialsPath)) {
+        const credentialsContent = fs.readFileSync(credentialsPath, 'utf8');
+        const sections = credentialsContent.split(/\n(?=\[)/);
+        
+        for (const section of sections) {
+          const profileMatch = section.match(/\[([^\]]+)\]/);
+          if (profileMatch) {
+            const profileName = profileMatch[1];
+            
+            // Check if this profile has access keys
+            const hasAccessKeyId = section.includes('aws_access_key_id');
+            const hasSecretKey = section.includes('aws_secret_access_key');
+            const hasAccessKeys = hasAccessKeyId && hasSecretKey;
+            
+            profiles.set(profileName, {
+              name: profileName,
+              type: 'cli',
+              description: hasAccessKeys ? 'Access Keys' : undefined
+            });
+          }
+        }
+      }
+      
+      // Parse config file for additional details like SSO and role assumptions
+      if (fs.existsSync(configPath)) {
+        const configContent = fs.readFileSync(configPath, 'utf8');
+        const sections = configContent.split(/\n(?=\[)/);
+        
+        for (const section of sections) {
+          const profileMatch = section.match(/\[profile ([^\]]+)\]/) || section.match(/\[([^\]]+)\]/);
+          if (profileMatch) {
+            const profileName = profileMatch[1];
+            
+            // Check for SSO configuration
+            const hasSsoStartUrl = section.includes('sso_start_url');
+            const hasSsoAccountId = section.includes('sso_account_id');
+            const hasSsoRoleName = section.includes('sso_role_name');
+            const isSSO = hasSsoStartUrl && hasSsoAccountId && hasSsoRoleName;
+            
+            // Check for role assumption
+            const roleArnMatch = section.match(/role_arn\s*=\s*([^\n\r]+)/);
+            const sourceProfileMatch = section.match(/source_profile\s*=\s*([^\n\r]+)/);
+            const isAssumedRole = roleArnMatch && sourceProfileMatch;
+            
+            // Extract region if present
+            const regionMatch = section.match(/region\s*=\s*([^\n\r]+)/);
+            const region = regionMatch ? regionMatch[1].trim() : undefined;
+            
+            let description: string | undefined;
+            if (isSSO) {
+              description = 'SSO';
+            } else if (isAssumedRole) {
+              description = 'Assumed Role';
+            }
+            
+            if (profiles.has(profileName)) {
+              // Update existing profile
+              const existingProfile = profiles.get(profileName)!;
+              profiles.set(profileName, {
+                ...existingProfile,
+                region,
+                roleArn: roleArnMatch ? roleArnMatch[1].trim() : undefined,
+                sourceProfile: sourceProfileMatch ? sourceProfileMatch[1].trim() : undefined,
+                description: description || existingProfile.description
+              });
+            } else {
+              // Add new profile (from config file)
+              profiles.set(profileName, {
+                name: profileName,
+                type: 'cli',
+                region,
+                roleArn: roleArnMatch ? roleArnMatch[1].trim() : undefined,
+                sourceProfile: sourceProfileMatch ? sourceProfileMatch[1].trim() : undefined,
+                description
+              });
+            }
+          }
+        }
+      }
+      
+      // Filter out default profile if it has no connection configuration
+      return Array.from(profiles.values()).filter(profile => {
+        // If it's not the default profile, keep it
+        if (profile.name !== 'default') {
+          return true;
+        }
+        
+        // For default profile, only keep if it has actual connection configuration
+        // Region is not connection data, only authentication methods matter
+        return profile.description || profile.roleArn;
+      });
+    } catch (error) {
+      console.error('Failed to get detailed CLI profiles:', error);
+      // Fallback to basic profile names
+      const basicProfiles = await this.getAvailableProfiles();
+      return basicProfiles.map(profile => ({
+        name: profile,
+        type: 'cli' as const
+      }));
+    }
+  }
+
+  /**
    * Get credentials for any profile with priority order:
    * 1. SSO in-memory credentials (if available and valid)
    * 2. CLI credentials from ~/.aws/ files

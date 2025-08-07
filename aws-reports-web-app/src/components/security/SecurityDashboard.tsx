@@ -208,7 +208,7 @@ export default function SecurityDashboard() {
   const [profileSummaryPageSizes, setProfileSummaryPageSizes] = useState<Record<string, number>>({});
   const [exportLoading, setExportLoading] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  
+
   // Captured parameters at button click time - these are used for the actual query
   const [capturedProfiles, setCapturedProfiles] = useState<string[]>([]);
   const [capturedRegions, setCapturedRegions] = useState<string[]>(['us-east-1']);
@@ -252,11 +252,11 @@ export default function SecurityDashboard() {
       const blob = await response.blob();
       const content = await blob.text();
       const contentType = response.headers.get('content-type') || 'application/octet-stream';
-      
+
       const timestamp = new Date().toISOString().split('T')[0];
       const extension = format === 'xlsx' ? 'xlsx' : format === 'pdf' ? 'pdf' : 'html';
       const filename = `security-report-${timestamp}.${extension}`;
-      
+
       const success = await electronAPI.saveFile(content, filename, contentType);
       if (success) {
         message.success(`Security report exported as ${format.toUpperCase()}`);
@@ -512,7 +512,7 @@ export default function SecurityDashboard() {
         },
         tooltip: {
           callbacks: {
-             
+
             label: function (context: any) {
               return `${context.dataset.label}: ${context.raw}`;
             },
@@ -526,7 +526,7 @@ export default function SecurityDashboard() {
         y: {
           stacked: true,
           ticks: {
-             
+
             callback: function (value: any) {
               return value;
             },
@@ -544,7 +544,7 @@ export default function SecurityDashboard() {
         },
         tooltip: {
           callbacks: {
-             
+
             label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -620,7 +620,7 @@ export default function SecurityDashboard() {
         },
         tooltip: {
           callbacks: {
-             
+
             label: function (context: any) {
               return `${context.dataset.label}: ${context.raw}`;
             },
@@ -634,7 +634,7 @@ export default function SecurityDashboard() {
         y: {
           stacked: true,
           ticks: {
-             
+
             callback: function (value: any) {
               return value;
             },
@@ -652,7 +652,7 @@ export default function SecurityDashboard() {
         },
         tooltip: {
           callbacks: {
-             
+
             label: function (context: any) {
               const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
               const percentage = ((context.raw / total) * 100).toFixed(1);
@@ -683,35 +683,8 @@ export default function SecurityDashboard() {
     );
   };
 
-
-  const loadFromConfig = () => {
-    if (securityConfig) {
-      setSelectedProfiles(securityConfig.profiles || []);
-      if (securityConfig.home_region) {
-        setSelectedRegions([securityConfig.home_region]);
-      }
-      message.success('Loaded settings from configuration file');
-    } else {
-      message.warning('No configuration file found. Please configure settings first.');
-    }
-  };
-
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={2} style={{ margin: 0 }}>Security Hub Dashboard</Title>
-        {securityConfig && (
-          <Space>
-            <Button
-              type="dashed"
-              onClick={loadFromConfig}
-              size="small"
-            >
-              Load from Config
-            </Button>
-          </Space>
-        )}
-      </div>
 
       <Card style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]} align="middle">
@@ -886,7 +859,7 @@ export default function SecurityDashboard() {
 
               severities.forEach(severity => {
                 const count = regionFindings.filter(f => f.severity === severity).length;
-                 
+
                 (row as any)[severity] = count;
                 totalCount += count;
               });
@@ -903,7 +876,7 @@ export default function SecurityDashboard() {
 
             severities.forEach(severity => {
               const severityTotal = rows.reduce((sum, row) => sum + (Number(row[severity as keyof SecurityTableRow]) || 0), 0);
-               
+
               (totalRow as any)[severity] = severityTotal;
               grandTotal += severityTotal;
             });
@@ -923,7 +896,7 @@ export default function SecurityDashboard() {
 
           severities.forEach(severity => {
             const count = profileFindings.filter(f => f.severity === severity).length;
-             
+
             (row as any)[severity] = count;
             totalCount += count;
           });
@@ -939,7 +912,7 @@ export default function SecurityDashboard() {
 
           severities.forEach(severity => {
             const severityTotal = globalSummaryData.reduce((sum, row) => sum + (Number(row[severity as keyof SecurityTableRow]) || 0), 0);
-             
+
             (globalTotalRow as any)[severity] = severityTotal;
             grandTotal += severityTotal;
           });

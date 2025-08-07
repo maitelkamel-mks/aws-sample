@@ -9,18 +9,29 @@ export async function GET() {
   try {
     const credentialsManager = AWSCredentialsManager.getInstance();
 
-    // Get CLI profiles
-    const cliProfiles = await credentialsManager.getAvailableProfiles();
+    // Get detailed CLI profiles (with region and other metadata)
+    const detailedCliProfiles = await credentialsManager.getDetailedCLIProfiles();
 
-    // Format CLI profiles
-    const formattedCliProfiles = cliProfiles.map(name => ({
-      name,
-      type: 'cli' as const,
-      isAuthenticated: true, // CLI profiles are always "authenticated" if they exist
-      region: null,
-      accountId: null,
-      roleArn: null
-    }));
+    // Check authentication status for CLI profiles on-demand
+    const authenticationChecks = await Promise.allSettled(
+      detailedCliProfiles.map(profile => credentialsManager.validateAnyProfile(profile.name))
+    );
+
+    // Format CLI profiles with actual authentication status
+    const formattedCliProfiles = detailedCliProfiles.map((profile, index) => {
+      const authResult = authenticationChecks[index];
+      const isAuthenticated = authResult.status === 'fulfilled' && authResult.value.success;
+      
+      return {
+        name: profile.name,
+        type: 'cli' as const,
+        isAuthenticated,
+        region: profile.region || null,
+        accountId: authResult.status === 'fulfilled' && authResult.value.success ? authResult.value.accountId || null : null,
+        roleArn: profile.roleArn || null,
+        description: profile.description || null // Profile type: SSO, Access Keys, Assumed Role
+      };
+    });
 
     // Get SSO profiles from multi-provider system
     const configManager = ConfigManager.getInstance();
@@ -38,7 +49,7 @@ export async function GET() {
           if (provider.settings?.profiles && Array.isArray(provider.settings.profiles)) {
             for (const profileData of provider.settings.profiles) {
               // Check if this profile also exists in CLI (dual type)
-              const existsInCli = cliProfiles.includes(profileData.profileName);
+              const existsInCli = detailedCliProfiles.some(cli => cli.name === profileData.profileName);
               
               ssoProfiles.push({
                 name: profileData.profileName,

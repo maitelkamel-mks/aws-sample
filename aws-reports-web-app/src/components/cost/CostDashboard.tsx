@@ -69,7 +69,7 @@ export default function CostDashboard() {
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [exportLoading, setExportLoading] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  
+
   // Captured parameters at button click time - these are used for the actual query
   const [capturedProfiles, setCapturedProfiles] = useState<string[]>([]);
   const [capturedDateRange, setCapturedDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs]>([dayjs().subtract(1, 'month'), dayjs()]);
@@ -638,23 +638,6 @@ export default function CostDashboard() {
     );
   };
 
-  const loadFromConfig = () => {
-    if (costConfig) {
-      setSelectedProfiles(costConfig.profiles || []);
-      setSelectedServices(costConfig.services || []);
-      setDateRange([
-        dayjs(costConfig.start_date),
-        dayjs(costConfig.end_date)
-      ]);
-      setGranularity(costConfig.period === 'daily' ? 'DAILY' : 'MONTHLY');
-      setIncludeTaxes(!costConfig.exclude_taxes);
-      setIncludeSupport(!costConfig.exclude_support);
-      message.success('Loaded default settings from configuration');
-    } else {
-      message.warning('No configuration file found. Please configure settings first.');
-    }
-  };
-
   const handleExport = async (format: 'pdf' | 'xlsx' | 'html') => {
     if (!costData || selectedProfiles.length === 0) {
       message.error('Please generate a report first');
@@ -743,20 +726,6 @@ export default function CostDashboard() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={2} style={{ margin: 0 }}>Cost Reports Dashboard</Title>
-        {costConfig && (
-          <Space>
-            <Button
-              type="dashed"
-              onClick={loadFromConfig}
-              size="small"
-            >
-              Load Defaults
-            </Button>
-          </Space>
-        )}
-      </div>
 
       <Card style={{ marginBottom: 16 }}>
         <Row gutter={[16, 16]} align="middle">
