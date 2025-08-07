@@ -3,10 +3,9 @@
 import { Card, Tabs, Typography, Alert } from 'antd';
 import CostConfigForm from './CostConfigForm';
 import SecurityConfigForm from './SecurityConfigForm';
-import MultiProviderProfilesDisplay from './MultiProviderProfilesDisplay';
 import ProxyConfigForm from './ProxyConfigForm';
-import MultiProviderSSOConfigForm from './MultiProviderSSOConfigForm';
 import CLIProfilesDisplay from './CLIProfilesDisplay';
+import SSOManagementDashboard from './SSOManagementDashboard';
 
 const { Title } = Typography;
 
@@ -19,26 +18,21 @@ export default function ConfigDashboard() {
     },
     {
       key: '2',
-      label: 'SSO Profiles',
-      children: <MultiProviderProfilesDisplay />,
+      label: 'SSO Management',
+      children: <SSOManagementDashboard />,
     },
     {
       key: '3',
-      label: 'SSO Providers',
-      children: <MultiProviderSSOConfigForm />,
-    },
-    {
-      key: '4',
       label: 'Cost Configuration',
       children: <CostConfigForm />,
     },
     {
-      key: '5',
+      key: '4',
       label: 'Security Configuration',
       children: <SecurityConfigForm />,
     },
     {
-      key: '6',
+      key: '5',
       label: 'Proxy Settings',
       children: <ProxyConfigForm />,
     },

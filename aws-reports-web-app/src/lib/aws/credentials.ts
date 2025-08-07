@@ -10,6 +10,7 @@ export interface AWSProfile {
   roleArn?: string;
   sourceProfile?: string;
   type?: 'cli';
+  description?: string; // Profile type: SSO, Access Keys, Assumed Role
 }
 
 export interface ConnectivityResult {
@@ -317,7 +318,7 @@ export class AWSCredentialsManager {
 
       // If no existing session, try to create one on-demand
       console.log(`No active session found for ${profileName}, attempting on-demand creation...`);
-      const createdCredentials = await this.createOnDemandSSOSession(profileName);
+      const createdCredentials = await this.createOnDemandSession(profileName);
       if (createdCredentials) {
         return createdCredentials;
       }
@@ -356,42 +357,59 @@ export class AWSCredentialsManager {
   }
 
   /**
-   * Create an on-demand SSO session for a profile when first accessed
-   * This improves authentication UX by not creating all sessions upfront
+   * Create an on-demand session for a profile when first accessed
+   * Handles both AWS SSO and SAML provider types
    */
-  private async createOnDemandSSOSession(profileName: string): Promise<AwsCredentialIdentity | null> {
-    try {
-      console.log(`Creating on-demand SSO session for profile: ${profileName}`);
-      
-      // Load multi-provider SSO configuration to find the profile
-      const { ConfigManager } = await import('../config');
-      const configManager = ConfigManager.getInstance();
-      const ssoConfig = await configManager.loadMultiProviderSSOConfig();
-      
-      if (!ssoConfig?.providers) {
-        console.log('No SSO providers configured');
-        return null;
-      }
+  private async createOnDemandSession(profileName: string): Promise<AwsCredentialIdentity | null> {
+    // Load multi-provider SSO configuration to find the profile
+    const { ConfigManager } = await import('../config');
+    const configManager = ConfigManager.getInstance();
+    const ssoConfig = await configManager.loadMultiProviderSSOConfig();
+    
+    if (!ssoConfig?.providers) {
+      console.log('No SSO providers configured');
+      return null;
+    }
 
-      // Find which provider contains this profile
-      let targetProvider: any = null;
-      let targetProfile: any = null;
+    // Find which provider contains this profile
+    let targetProvider: any = null;
+    let targetProfile: any = null;
 
-      for (const provider of ssoConfig.providers) {
-        if (provider.settings?.profiles) {
-          const profile = provider.settings.profiles.find((p: any) => p.profileName === profileName);
-          if (profile) {
-            targetProvider = provider;
-            targetProfile = profile;
-            break;
-          }
+    for (const provider of ssoConfig.providers) {
+      if (provider.settings?.profiles) {
+        const profile = provider.settings.profiles.find((p: any) => p.profileName === profileName);
+        if (profile) {
+          targetProvider = provider;
+          targetProfile = profile;
+          break;
         }
       }
+    }
 
-      if (!targetProvider || !targetProfile) {
-        console.log(`Profile ${profileName} not found in SSO configuration`);
-        return null;
-      }
+    if (!targetProvider || !targetProfile) {
+      console.log(`Profile ${profileName} not found in SSO configuration`);
+      return null;
+    }
+
+    console.log(`🔍 Credential Debug: Found profile ${profileName} in ${targetProvider.type} provider ${targetProvider.id}`);
+
+    // Handle different provider types
+    if (targetProvider.type === 'AWS_SSO') {
+      return await this.createAWSSOCredentials(profileName, targetProvider, targetProfile);
+    } else if (targetProvider.type === 'SAML') {
+      return await this.createSAMLCredentials(profileName, targetProvider, targetProfile);
+    } else {
+      console.log(`Unsupported provider type: ${targetProvider.type}`);
+      return null;
+    }
+  }
+
+  /**
+   * Create AWS SSO credentials using master token
+   */
+  private async createAWSSOCredentials(profileName: string, targetProvider: any, targetProfile: any): Promise<AwsCredentialIdentity | null> {
+    try {
+      console.log(`🔍 AWS SSO Credential Debug: Creating on-demand SSO session for profile: ${profileName}`);
 
       // Check if we have a master token for this provider
       const registry = SSOProviderRegistry.getInstance();
@@ -443,7 +461,7 @@ export class AWSCredentialsManager {
         };
         
         registry.addSession(targetProvider.id, session);
-        console.log(`Created on-demand SSO session for profile: ${profileName}`);
+        console.log(`✅ AWS SSO Credential Debug: Created on-demand SSO session for profile: ${profileName}`);
 
         return {
           accessKeyId: session.accessKeyId,
@@ -455,7 +473,218 @@ export class AWSCredentialsManager {
 
       return null;
     } catch (error) {
-      console.error(`Failed to create on-demand SSO session for profile ${profileName}:`, error);
+      console.error(`❌ AWS SSO Credential Debug: Failed to create on-demand SSO session for profile ${profileName}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Create SAML credentials using STS AssumeRoleWithSAML
+   */
+  private async createSAMLCredentials(profileName: string, targetProvider: any, targetProfile: any): Promise<AwsCredentialIdentity | null> {
+    try {
+      console.log(`🔍 SAML Credential Debug: Creating credentials for SAML profile: ${profileName}`);
+
+      // Get the SAML session with the assertion
+      const registry = SSOProviderRegistry.getInstance();
+      const providerSessions = registry.getActiveSessions(targetProvider.id);
+      
+      // Look for a session that has a SAML assertion
+      const samlSession = providerSessions.find(session => 
+        session.metadata?.samlAssertion && 
+        session.expiresAt && new Date() < session.expiresAt
+      );
+
+      if (!samlSession?.metadata?.samlAssertion) {
+        console.log(`🚨 SAML Credential Debug: No valid SAML assertion available for provider ${targetProvider.id}. Re-authentication required.`);
+        return null;
+      }
+
+      console.log(`🔍 SAML Credential Debug: Found SAML assertion, assuming role for ${targetProfile.accountId}/${targetProfile.roleName}`);
+
+      // Use STS AssumeRoleWithSAML to get AWS credentials
+      const { STSClient, AssumeRoleWithSAMLCommand } = await import('@aws-sdk/client-sts');
+      const stsClient = new STSClient({
+        region: targetProfile.region || targetProvider.settings?.region || 'us-east-1'
+      });
+
+      // Use the role ARN and principal ARN from the discovered role metadata if available
+      let roleArn: string;
+      let principalArn: string;
+      
+      // First, try to find the matching discovered role with metadata
+      const discoveredRole = await this.findDiscoveredRoleMetadata(targetProvider.id, targetProfile.accountId, targetProfile.roleName);
+      
+      if (discoveredRole?.metadata?.roleArn && discoveredRole?.metadata?.principalArn) {
+        roleArn = discoveredRole.metadata.roleArn;
+        principalArn = discoveredRole.metadata.principalArn;
+        console.log(`✅ SAML Credential Debug: Using discovered role metadata - Role: ${roleArn}, Principal: ${principalArn}`);
+      } else {
+        // Try to extract principal ARN from SAML assertion in session metadata
+        const extractedPrincipalArn = await this.extractPrincipalArnFromSAMLAssertion(samlSession.metadata.samlAssertion);
+        
+        roleArn = `arn:aws:iam::${targetProfile.accountId}:role/${targetProfile.roleName}`;
+        if (extractedPrincipalArn) {
+          principalArn = extractedPrincipalArn;
+          console.log(`✅ SAML Credential Debug: Using extracted principal ARN from SAML assertion - Role: ${roleArn}, Principal: ${principalArn}`);
+        } else {
+          // Final fallback to constructing ARNs
+          principalArn = `arn:aws:iam::${targetProfile.accountId}:saml-provider/WebSSO`;
+          console.log(`⚠️ SAML Credential Debug: Using fallback ARNs - Role: ${roleArn}, Principal: ${principalArn}`);
+        }
+      }
+
+      const assumeRoleCommand = new AssumeRoleWithSAMLCommand({
+        RoleArn: roleArn,
+        PrincipalArn: principalArn,
+        SAMLAssertion: samlSession.metadata.samlAssertion,
+        DurationSeconds: targetProvider.settings?.sessionDuration || 3600
+      });
+
+      console.log(`🔍 SAML Credential Debug: Calling AssumeRoleWithSAML for role: ${roleArn}`);
+      const assumeRoleResponse = await stsClient.send(assumeRoleCommand);
+
+      if (assumeRoleResponse.Credentials) {
+        const credentials = assumeRoleResponse.Credentials;
+        const expiresAt = credentials.Expiration || new Date(Date.now() + 3600000);
+        
+        console.log(`✅ SAML Credential Debug: Successfully created AWS credentials for profile: ${profileName}`);
+
+        // Update the existing session with the AWS credentials
+        const existingSessionIndex = providerSessions.findIndex(s => s.sessionId === samlSession.sessionId);
+        if (existingSessionIndex >= 0) {
+          providerSessions[existingSessionIndex] = {
+            ...samlSession,
+            accessKeyId: credentials.AccessKeyId!,
+            secretAccessKey: credentials.SecretAccessKey!,
+            sessionToken: credentials.SessionToken!,
+            expiresAt,
+            lastRefreshed: new Date(),
+            metadata: {
+              ...samlSession.metadata,
+              accountId: targetProfile.accountId,
+              roleName: targetProfile.roleName,
+              region: targetProfile.region,
+              awsCredentialsCreated: true
+            }
+          };
+        }
+
+        return {
+          accessKeyId: credentials.AccessKeyId!,
+          secretAccessKey: credentials.SecretAccessKey!,
+          sessionToken: credentials.SessionToken!,
+          expiration: expiresAt
+        };
+      }
+
+      console.log(`❌ SAML Credential Debug: No credentials returned from AssumeRoleWithSAML`);
+      return null;
+    } catch (error) {
+      console.error(`❌ SAML Credential Debug: Failed to create SAML credentials for profile ${profileName}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Extract principal ARN from SAML assertion by parsing the role attributes
+   */
+  private async extractPrincipalArnFromSAMLAssertion(samlAssertion: string): Promise<string | null> {
+    try {
+      console.log(`🔍 SAML Principal Debug: Extracting principal ARN from SAML assertion`);
+      
+      // Decode SAML assertion
+      const decodedSAML = Buffer.from(samlAssertion, 'base64').toString('utf-8');
+      
+      // Parse SAML XML using cheerio
+      const cheerio = await import('cheerio');
+      const $ = cheerio.load(decodedSAML, { xmlMode: true });
+      
+      // Find role attributes in SAML assertion
+      const roleAttributes = $('saml\\:Attribute[Name*=\"Role\"], Attribute[Name*=\"Role\"]');
+      
+      let principalArn: string | null = null;
+      
+      roleAttributes.each((_, element) => {
+        const attributeValues = $(element).find('saml\\:AttributeValue, AttributeValue');
+        
+        attributeValues.each((_, valueElement) => {
+          const roleValue = $(valueElement).text().trim();
+          
+          // Parse role ARN format: arn:aws:iam::ACCOUNT:role/ROLE,arn:aws:iam::ACCOUNT:saml-provider/PROVIDER
+          const parts = roleValue.split(',');
+          if (parts.length === 2) {
+            const possibleRoleArn = parts[0].trim();
+            const possiblePrincipalArn = parts[1].trim();
+            
+            // Check which one is the principal ARN (contains saml-provider)
+            if (possiblePrincipalArn.includes('saml-provider')) {
+              principalArn = possiblePrincipalArn;
+              console.log(`✅ SAML Principal Debug: Found principal ARN in assertion: ${principalArn}`);
+              return false; // break the loop
+            } else if (possibleRoleArn.includes('saml-provider')) {
+              principalArn = possibleRoleArn;
+              console.log(`✅ SAML Principal Debug: Found principal ARN in assertion: ${principalArn}`);
+              return false; // break the loop
+            }
+          }
+        });
+      });
+      
+      if (!principalArn) {
+        console.log(`🔍 SAML Principal Debug: No principal ARN found in SAML assertion`);
+      }
+      
+      return principalArn;
+    } catch (error) {
+      console.error('Error extracting principal ARN from SAML assertion:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Find discovered role metadata for SAML principal ARN resolution
+   */
+  private async findDiscoveredRoleMetadata(providerId: string, accountId: string, roleName: string): Promise<any> {
+    try {
+      console.log(`🔍 SAML Credential Debug: Looking for role metadata for ${accountId}/${roleName} in provider ${providerId}`);
+      
+      // Load multi-provider SSO configuration to find the stored role metadata
+      const { ConfigManager } = await import('../config');
+      const configManager = ConfigManager.getInstance();
+      const ssoConfig = await configManager.loadMultiProviderSSOConfig();
+      
+      if (!ssoConfig?.providers) {
+        console.log(`🔍 SAML Credential Debug: No SSO providers in configuration`);
+        return null;
+      }
+
+      // Find the provider in configuration
+      const provider = ssoConfig.providers.find(p => p.id === providerId);
+      if (!provider?.settings?.profiles) {
+        console.log(`🔍 SAML Credential Debug: Provider ${providerId} not found or has no profiles`);
+        return null;
+      }
+
+      // Find the matching profile in the provider's stored profiles
+      const profile = provider.settings.profiles.find((p: any) => 
+        p.accountId === accountId && p.roleName === roleName
+      );
+      
+      if (profile?.metadata) {
+        console.log(`✅ SAML Credential Debug: Found role metadata for ${accountId}/${roleName}:`, {
+          hasRoleArn: !!profile.metadata.roleArn,
+          hasPrincipalArn: !!profile.metadata.principalArn,
+          roleArn: profile.metadata.roleArn,
+          principalArn: profile.metadata.principalArn
+        });
+        return profile;
+      }
+
+      console.log(`🔍 SAML Credential Debug: No metadata found for ${accountId}/${roleName} in provider ${providerId}`);
+      return null;
+    } catch (error) {
+      console.error('Error finding discovered role metadata:', error);
       return null;
     }
   }

@@ -70,7 +70,8 @@ export async function POST(request: NextRequest) {
         profileName: role.customName,
         accountId: role.originalRole.accountId,
         roleName: role.originalRole.roleName,
-        region: role.originalRole.metadata?.region || providerConfig.settings.region || 'us-east-1'
+        region: role.originalRole.metadata?.region || providerConfig.settings.region || 'us-east-1',
+        metadata: role.originalRole.metadata // Preserve the entire metadata including roleArn and principalArn
       }));
 
     // Get existing profiles and merge with new ones (avoid duplicates)

@@ -94,10 +94,15 @@ export default function RoleSelectionModal({
     })));
   };
 
-  const handleRoleSelect = (index: number, checked: boolean) => {
+  const handleRoleSelect = (roleKey: string, checked: boolean) => {
     setSelectedRoles(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], selected: checked };
+      const updated = prev.map(role => {
+        const key = `${role.originalRole.accountId}-${role.originalRole.roleName}`;
+        if (key === roleKey) {
+          return { ...role, selected: checked };
+        }
+        return role;
+      });
 
       // Update select all state
       const allSelected = updated.every(role => role.selected);
@@ -107,11 +112,15 @@ export default function RoleSelectionModal({
     });
   };
 
-  const handleNameChange = (index: number, newName: string) => {
+  const handleNameChange = (roleKey: string, newName: string) => {
     setSelectedRoles(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], customName: newName };
-      return updated;
+      return prev.map(role => {
+        const key = `${role.originalRole.accountId}-${role.originalRole.roleName}`;
+        if (key === roleKey) {
+          return { ...role, customName: newName };
+        }
+        return role;
+      });
     });
   };
 
@@ -135,15 +144,18 @@ export default function RoleSelectionModal({
       ),
       dataIndex: 'selected',
       width: 120,
-      render: (_: any, record: SelectedRole, index: number) => (
-        <Space>
-          <Checkbox
-            checked={record.selected}
-            onChange={(e) => handleRoleSelect(index, e.target.checked)}
-            disabled={record.alreadyExists}
-          />
-        </Space>
-      ),
+      render: (_: any, record: SelectedRole) => {
+        const roleKey = `${record.originalRole.accountId}-${record.originalRole.roleName}`;
+        return (
+          <Space>
+            <Checkbox
+              checked={record.selected}
+              onChange={(e) => handleRoleSelect(roleKey, e.target.checked)}
+              disabled={record.alreadyExists}
+            />
+          </Space>
+        );
+      },
     },
     {
       title: 'AWS Account & Role',
@@ -164,7 +176,7 @@ export default function RoleSelectionModal({
     {
       title: 'Profile Name',
       dataIndex: 'customName',
-      render: (name: string, record: SelectedRole, index: number) => {
+      render: (name: string, record: SelectedRole) => {
         if (record.alreadyExists) {
           const existingName = getExistingProfileName(record.originalRole);
           return (
@@ -179,10 +191,11 @@ export default function RoleSelectionModal({
           );
         }
 
+        const roleKey = `${record.originalRole.accountId}-${record.originalRole.roleName}`;
         return (
           <Input
             value={name}
-            onChange={(e) => handleNameChange(index, e.target.value)}
+            onChange={(e) => handleNameChange(roleKey, e.target.value)}
             placeholder="Enter custom profile name"
             prefix={<EditOutlined />}
             disabled={!record.selected}
@@ -274,7 +287,7 @@ export default function RoleSelectionModal({
           <Table
             columns={columns}
             dataSource={selectedRoles}
-            rowKey={(record, index) => `${record.originalRole.accountId}-${record.originalRole.roleName}-${index}`}
+            rowKey={(record) => `${record.originalRole.accountId}-${record.originalRole.roleName}`}
             pagination={discoveredRoles.length > 10 ? { pageSize: 10 } : false}
             size="middle"
             scroll={{ x: 800 }}

@@ -215,49 +215,112 @@ export class SSOProviderRegistry extends EventEmitter {
     credentials: AuthCredentials, 
     config: ProviderConfig
   ): Promise<AuthenticationResult> {
-    console.log(`Authenticating with provider: ${providerId} (type: ${config.type})`);
+    console.log(`🔍 Registry Debug: Authenticating with provider: ${providerId} (type: ${config.type})`);
+    console.log(`🔍 Registry Debug: Credentials provided:`, {
+      hasUsername: !!credentials.username,
+      usernameLength: credentials.username?.length || 0,
+      hasPassword: !!credentials.password,
+      passwordLength: credentials.password?.length || 0,
+      hasMfaCode: !!credentials.mfaCode
+    });
+    console.log(`🔍 Registry Debug: Config details:`, {
+      id: config.id,
+      type: config.type,
+      name: config.name,
+      hasSettings: !!config.settings,
+      settingsKeys: config.settings ? Object.keys(config.settings) : []
+    });
     
     let provider = this.getProvider(providerId);
     if (!provider) {
-      console.log(`Provider ${providerId} not found in instances, attempting to configure...`);
+      console.log(`🔍 Registry Debug: Provider ${providerId} not found in instances, attempting to configure...`);
       // Try to configure the provider first
       try {
         await this.configureProvider(config);
         provider = this.getProvider(providerId);
-        console.log(`Successfully configured provider ${providerId}`);
+        console.log(`✅ Registry Debug: Successfully configured provider ${providerId}`);
       } catch (configError) {
-        console.error(`Failed to configure provider ${providerId}:`, configError);
+        console.error(`❌ Registry Debug: Failed to configure provider ${providerId}:`, configError);
         throw new Error(`Provider ${providerId} not found or not configured: ${configError}`);
       }
       
       if (!provider) {
+        console.error(`❌ Registry Debug: Failed to initialize provider: ${providerId}`);
         throw new Error(`Provider ${providerId} not found or not configured`);
       }
+    } else {
+      console.log(`✅ Registry Debug: Found existing provider instance for ${providerId}`);
     }
 
     const status = this.providerStatuses.get(providerId);
+    console.log(`🔍 Registry Debug: Provider status before auth:`, status);
 
     try {
+      console.log(`🔍 Registry Debug: Starting provider.authenticate() for ${providerId}`);
       const result = await provider.authenticate(credentials, config);
       
-      // Update status
+      console.log(`🔍 Registry Debug: Provider authenticate result:`, {
+        success: result.success,
+        hasSessionId: !!result.sessionId,
+        hasSamlAssertion: !!result.samlAssertion,
+        hasAccessToken: !!result.accessToken,
+        requiresDeviceFlow: result.requiresDeviceFlow,
+        error: result.error
+      });
+      
+      // Update status and create session if authentication was successful
       if (status) {
         status.healthy = result.success;
         status.lastChecked = new Date();
         if (!result.success && result.error) {
           status.error = result.error;
+        } else {
+          // Clear any previous error on successful authentication
+          delete status.error;
+          
+          // Create a session record for successful authentication
+          if (result.success && result.sessionId && result.expiresAt) {
+            console.log('🔍 Registry Debug: Creating session for successful authentication');
+            const session: SSOSession = {
+              sessionId: result.sessionId,
+              profileName: `${config.name}-session`, // Temporary profile name
+              providerId: providerId,
+              providerType: config.type,
+              accessKeyId: '', // Will be populated when roles are selected
+              secretAccessKey: '', // Will be populated when roles are selected  
+              sessionToken: '', // Will be populated when roles are selected
+              expiresAt: result.expiresAt,
+              createdAt: new Date(),
+              lastRefreshed: new Date(),
+              metadata: {
+                authenticatedAt: new Date().toISOString(),
+                samlAssertion: result.samlAssertion,
+                accessToken: result.accessToken,
+                source: 'provider-authentication'
+              }
+            };
+            
+            this.addSession(providerId, session);
+            console.log('✅ Registry Debug: Session created for', providerId);
+          }
         }
         this.providerStatuses.set(providerId, status);
+        console.log(`🔍 Registry Debug: Updated provider status for ${providerId}:`, status);
       }
 
       return result;
     } catch (error) {
+      console.error(`❌ Registry Debug: Exception during authentication for ${providerId}:`, error);
+      console.error(`❌ Registry Debug: Error type:`, error?.constructor?.name);
+      console.error(`❌ Registry Debug: Error message:`, error instanceof Error ? error.message : 'Unknown error');
+      
       // Update status on error
       if (status) {
         status.healthy = false;
         status.error = error instanceof Error ? error.message : 'Unknown error';
         status.lastChecked = new Date();
         this.providerStatuses.set(providerId, status);
+        console.log(`🔍 Registry Debug: Updated provider status after error:`, status);
       }
       throw error;
     }

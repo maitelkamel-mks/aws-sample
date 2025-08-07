@@ -233,6 +233,7 @@ export class SAMLProvider implements SSOProvider {
   private createHttpClient(config: ProviderConfig): AxiosInstance {
     const axiosConfig: any = {
       timeout: 30000,
+      withCredentials: true, // Enable cookie handling
       headers: {
         'User-Agent': 'AWS-Reports-SSO-Client/1.0',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -255,7 +256,19 @@ export class SAMLProvider implements SSOProvider {
       };
     }
 
-    return axios.create(axiosConfig);
+    const client = axios.create(axiosConfig);
+    
+    // Add request interceptor to log outgoing cookies
+    client.interceptors.request.use((config) => {
+      console.log('🍪 HTTP Request Debug:', {
+        url: config.url,
+        method: config.method,
+        cookies: config.headers?.Cookie || 'none'
+      });
+      return config;
+    });
+
+    return client;
   }
 
   /**
@@ -279,11 +292,19 @@ export class SAMLProvider implements SSOProvider {
       const encodedGotoUrl = encodeURIComponent(`${gotoUrl}?spEntityID=${samlDestination}&metaAlias=${metaAlias}&redirected=true`);
       const initialUrl = `${settings.startUrl}?realm=${realm}&module=${moduleType}&goto=${encodedGotoUrl}&gx_charset=UTF-8`;
       
-      console.log('SAML Session Debug: Using initial URL:', initialUrl);
+      console.log('🔍 SAML Session Debug: Using initial URL:', initialUrl);
+      console.log('🔍 SAML Session Debug: HTTP client configuration:', {
+        timeout: this.httpClient.defaults.timeout,
+        hasProxy: !!this.httpClient.defaults.httpsAgent,
+        headers: this.httpClient.defaults.headers
+      });
       
       // Step 1: Initial session to set cookies
+      console.log('🔍 SAML Session Debug: Making initial GET request...');
       const initialResponse = await this.httpClient.get(initialUrl);
-      console.log('SAML Session Debug: Initial response status:', initialResponse.status);
+      console.log('✅ SAML Session Debug: Initial response status:', initialResponse.status);
+      console.log('🔍 SAML Session Debug: Initial response headers:', JSON.stringify(initialResponse.headers, null, 2));
+      console.log('🔍 SAML Session Debug: Initial response cookies:', initialResponse.headers['set-cookie']);
       
       // Step 2: Get auth structure from JSON endpoint
       const authValuesUrl = `${baseUrl}/gardianwebsso/json/authenticate?realm=${realm}&module=${moduleType}&goto=${gotoUrl}?spEntityID=${samlDestination}&metaAlias=${metaAlias}&redirected=true&gx_charset=UTF-8&authIndexType=module&authIndexValue=${moduleType}`;
@@ -291,11 +312,13 @@ export class SAMLProvider implements SSOProvider {
       // Set required header for JSON API
       this.httpClient.defaults.headers['Accept-API-Version'] = 'protocol=1.0,resource=2.0';
       
-      console.log('SAML Session Debug: Getting auth values from:', authValuesUrl);
+      console.log('🔍 SAML Session Debug: Getting auth values from:', authValuesUrl);
+      console.log('🔍 SAML Session Debug: Request headers for auth endpoint:', this.httpClient.defaults.headers);
       const authResponse = await this.httpClient.post(authValuesUrl);
       
-      console.log('SAML Session Debug: Auth response status:', authResponse.status);
-      console.log('SAML Session Debug: Auth response data:', JSON.stringify(authResponse.data, null, 2));
+      console.log('✅ SAML Session Debug: Auth response status:', authResponse.status);
+      console.log('🔍 SAML Session Debug: Auth response headers:', JSON.stringify(authResponse.headers, null, 2));
+      console.log('🔍 SAML Session Debug: Auth response data:', JSON.stringify(authResponse.data, null, 2));
       
       // Build the final submit URL
       const submitUrl = `${baseUrl}/gardianwebsso/json/authenticate?realm=${realm}&module=${moduleType}&goto=${encodedGotoUrl}&gx_charset=UTF-8&authIndexType=module&authIndexValue=${moduleType}`;
@@ -372,28 +395,106 @@ export class SAMLProvider implements SSOProvider {
         }
       });
       
-      console.log('SAML Authentication Debug: Auth response status:', response.status);
-      console.log('SAML Authentication Debug: Auth response data:', JSON.stringify(response.data, null, 2));
+      console.log('🔐 SAML Auth Debug: Auth response status:', response.status);
+      console.log('🔐 SAML Auth Debug: Auth response headers:', JSON.stringify(response.headers, null, 2));
+      console.log('🔐 SAML Auth Debug: Auth response data:', JSON.stringify(response.data, null, 2));
       
       // Check if authentication was successful
       if (response.data.successUrl) {
         console.log('SAML Authentication Debug: Authentication successful, getting SAML assertion');
         
         // Follow the success URL to get SAML assertion
-        const samlResponse = await this.httpClient.get(response.data.successUrl);
-        console.log('SAML Authentication Debug: SAML response status:', samlResponse.status);
+        console.log('🔍 SAML Auth Debug: Following success URL to get SAML assertion');
+        console.log('🔍 SAML Auth Debug: Success URL:', response.data.successUrl);
+        console.log('🔍 SAML Auth Debug: Available cookies from auth response:', response.headers['set-cookie']);
+        
+        // Collect all cookies from previous requests
+        const allCookies = [
+          ...(sessionData.cookies || []),
+          ...(response.headers['set-cookie'] || [])
+        ];
+        
+        // Parse cookies to get just the cookie values (remove Path, Domain, etc.)
+        const cookieValues = allCookies.map(cookie => {
+          return cookie.split(';')[0]; // Take just the name=value part
+        }).join('; ');
+        
+        console.log('🍪 SAML Auth Debug: Sending cookies:', cookieValues);
+        
+        // Make sure to include cookies from the authentication response
+        const samlResponse = await this.httpClient.get(response.data.successUrl, {
+          headers: {
+            'Cookie': cookieValues,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Referer': sessionData.submitUrl
+          }
+        });
+        console.log('✅ SAML Auth Debug: SAML response status:', samlResponse.status);
+        console.log('🔍 SAML Auth Debug: SAML response headers:', JSON.stringify(samlResponse.headers, null, 2));
         
         // Extract SAML assertion from response
+        console.log('🔍 SAML Auth Debug: Response data preview:', samlResponse.data.substring(0, 500) + (samlResponse.data.length > 500 ? '...' : ''));
         const samlAssertion = this.extractSAMLFromResponse(samlResponse.data);
-        console.log('SAML Authentication Debug: Extracted SAML assertion length:', samlAssertion.length);
+        console.log('✅ SAML Auth Debug: Extracted SAML assertion length:', samlAssertion.length);
         
         return samlAssertion;
       } else {
         throw new Error('Authentication failed - no success URL returned');
       }
     } catch (error) {
+      console.error('❌ SAML Auth Error: Exception caught during authentication:', error);
+      console.error('❌ SAML Auth Error: Error type:', error?.constructor?.name);
+      
+      // Log detailed HTTP error information
+      if ((error as any)?.response) {
+        const httpError = (error as any).response;
+        console.error('❌ SAML Auth HTTP Error Details:', {
+          status: httpError.status,
+          statusText: httpError.statusText,
+          url: httpError.config?.url,
+          method: httpError.config?.method,
+          headers: httpError.headers,
+          data: httpError.data
+        });
+        
+        // Specific handling for 401 Unauthorized
+        if (httpError.status === 401) {
+          console.error('🚨 SAML Auth 401 Error Analysis:');
+          console.error('🚨 Request URL:', httpError.config?.url);
+          console.error('🚨 Request Method:', httpError.config?.method);
+          console.error('🚨 Request Headers:', httpError.config?.headers);
+          console.error('🚨 Request Payload:', httpError.config?.data);
+          console.error('🚨 Response Headers:', httpError.headers);
+          console.error('🚨 Response Body:', httpError.data);
+          
+          // Check if it's a credential validation issue
+          if (httpError.data && typeof httpError.data === 'object') {
+            console.error('🚨 Server Response Analysis:', {
+              hasErrorMessage: !!httpError.data.message,
+              hasErrorCode: !!httpError.data.code,
+              hasErrorDetails: !!httpError.data.detail,
+              responseKeys: Object.keys(httpError.data)
+            });
+          }
+          
+          throw new Error(`Authentication failed: Invalid credentials or session expired (HTTP 401). Server response: ${JSON.stringify(httpError.data)}`);
+        }
+        
+        throw new Error(`Authentication failed: HTTP ${httpError.status} ${httpError.statusText}. ${JSON.stringify(httpError.data)}`);
+      }
+      
+      // Log request error information
+      if ((error as any)?.request) {
+        const reqError = (error as any).request;
+        console.error('❌ SAML Auth Request Error Details:', {
+          url: reqError.url,
+          method: reqError.method,
+          headers: reqError.headers
+        });
+      }
+      
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('SAML Authentication Error:', errorMessage);
+      console.error('❌ SAML Auth Final Error:', errorMessage);
       throw new Error(`Authentication failed: ${errorMessage}`);
     }
   }
