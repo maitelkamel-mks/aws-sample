@@ -265,14 +265,6 @@ export default function AWSProfileSelector({
             />
           )}
         </div>
-
-        {/* Profile summary */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text type="secondary" style={{ fontSize: 11 }}>
-            {totalProfiles} profile{totalProfiles !== 1 ? 's' : ''} available
-            {includeSso && ssoConfigured && ` • SSO configured`}
-          </Text>
-        </div>
       </Space>
     </div>
   );
