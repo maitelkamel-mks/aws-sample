@@ -118,6 +118,7 @@ When modifying AWS integrations:
 4. Respect the multi-account architecture using STS role assumption
 5. For SSO integrations, use the multi-provider SSO registry in `src/lib/services/sso-provider-registry.ts` and provider implementations in `src/lib/providers/`
 6. **Use the unified profiles API** at `/api/aws/profiles/unified` for consistent profile access
+7. **SAML Credentials**: The system automatically handles complex SAML authentication scenarios including cross-account principal ARN resolution and metadata persistence
 
 ### Component Development Guidelines
 
@@ -129,6 +130,7 @@ When creating or modifying components:
 4. **Ant Design Context**: Always use `modal` from `App.useApp()` instead of static `Modal.confirm()` to respect theme context
 5. **Profile Management**: Use `useAWSProfiles` hook for unified profile data access with automatic cache synchronization
 6. **Form Integration**: When using AWSProfileSelector in forms, use `onChange={(value) => form.setFieldValue('field', value)}` pattern
+7. **SSO Management**: Use the unified `SSOManagementDashboard` component for all SSO-related configuration and management tasks
 
 ### Configuration System
 
@@ -157,9 +159,9 @@ src/lib/providers/
 └── index.ts                            # Provider registry and exports
 
 src/components/config/
-├── MultiProviderSSOConfigForm.tsx      # Multi-provider configuration interface
-├── MultiProviderProfilesDisplay.tsx    # Dense, editable profile table
-└── RoleSelectionModal.tsx              # Interactive role selection with existing profile detection
+├── SSOManagementDashboard.tsx          # Unified SSO provider configuration and profile management
+├── RoleSelectionModal.tsx              # Interactive role selection with existing profile detection
+└── [legacy components replaced by unified dashboard]
 
 src/hooks/
 └── useAWSProfiles.ts                   # Unified profile management hook
@@ -172,9 +174,12 @@ src/components/common/
 
 **1. SAML Provider (`SAMLProvider`)**
 - Enterprise SAML 2.0 authentication with JSON API integration
-- Automatic role discovery from SAML assertions
-- Proxy support and comprehensive error handling
-- Configuration: startUrl, realm, module, metaAlias, sessionDuration
+- Automatic role discovery from SAML assertions with metadata persistence
+- **Robust Cross-Account Principal ARN Resolution**: Intelligent extraction of correct principal ARNs from SAML assertions to handle cross-account scenarios
+- **Advanced Cookie Session Management**: Comprehensive HTTP cookie handling for complex enterprise SAML flows
+- **Smart Fallback Strategies**: Multiple layers of ARN resolution for maximum compatibility
+- Proxy support and comprehensive error handling with detailed debugging
+- Configuration: startUrl, realm, module, metaAlias, sessionDuration, gotoUrl
 
 **2. AWS Managed SSO Provider (`AWSManagedSSOProvider`)**
 - AWS Identity Center integration with OAuth2 device authorization flow
@@ -189,12 +194,14 @@ src/components/common/
 #### Multi-Provider Features
 - **Plugin Architecture**: Extensible provider system with standardized interface
 - **Provider Registry**: Central orchestrator managing multiple providers simultaneously
+- **Unified Management Dashboard**: Single interface for all SSO provider configuration and profile management
 - **Dynamic Configuration**: Auto-generating UI forms based on provider schemas
 - **Health Monitoring**: Real-time provider health checks and session tracking
 - **Legacy Migration**: Automatic migration from single-provider configurations
 - **Session Management**: Multi-provider session tracking with expiration handling
 - **Dense Profile Management**: Editable table interface for profile name updates and deletion
 - **Cross-Component Synchronization**: Profile changes automatically propagate across all components
+- **Production-Ready SAML**: Complete enterprise SAML 2.0 support with cross-account principal ARN resolution
 
 #### Multi-Provider API Routes
 ```
@@ -432,4 +439,44 @@ docs(readme): update architecture documentation with latest changes
 - Use consistent error message formatting across all components
 - Provide specific resolution steps for common AWS authentication and permission issues
 
-This architecture represents a mature, enterprise-grade AWS management application with sophisticated multi-provider authentication, controlled data loading patterns, reusable component architecture, and comprehensive cross-platform support.
+### SAML Implementation Notes
+
+#### SAML Authentication Flow
+The SAML provider implements a comprehensive enterprise-grade authentication flow:
+
+1. **Session Initiation**: Creates initial session with enterprise SAML endpoint
+2. **Cookie Management**: Maintains session cookies across authentication requests
+3. **Credential Submission**: JSON API-based credential submission with proper headers
+4. **SAML Assertion Extraction**: Parses HTML response to extract SAML assertion
+5. **Role Discovery**: Intelligently parses SAML assertion to discover available AWS roles
+6. **Principal ARN Resolution**: Matches principal ARNs to target accounts for cross-account scenarios
+7. **Metadata Persistence**: Stores complete role metadata for future credential generation
+
+#### SAML Troubleshooting
+
+**Common Issues and Solutions:**
+
+1. **Cross-Account Principal ARN Errors**
+   - **Error**: `ValidationError: Principal exists outside the account of the Role being assumed`
+   - **Solution**: System automatically extracts correct principal ARN from SAML assertion for target account
+   - **Debugging**: Check SAML debug logs for principal ARN resolution process
+
+2. **Cookie Session Issues**
+   - **Error**: HTTP 500 when fetching SAML assertion
+   - **Solution**: Comprehensive cookie management across authentication flow
+   - **Debugging**: Enable SAML session debug logs to trace cookie handling
+
+3. **Role Discovery Problems**
+   - **Error**: No roles discovered after successful authentication
+   - **Solution**: System parses both role and principal ARNs from SAML assertion attributes
+   - **Debugging**: Check SAML roles debug logs for attribute parsing details
+
+#### SAML Configuration Best Practices
+
+- **Enterprise Integration**: Use proper `startUrl`, `realm`, and `module` parameters
+- **Session Duration**: Configure appropriate `sessionDuration` for security policies
+- **Proxy Support**: Enable proxy configuration for enterprise networks
+- **Debug Logging**: Extensive logging available for troubleshooting authentication issues
+- **Metadata Persistence**: Role metadata automatically preserved for credential generation
+
+This architecture represents a mature, enterprise-grade AWS management application with sophisticated multi-provider authentication, controlled data loading patterns, reusable component architecture, comprehensive cross-platform support, and production-ready SAML integration for enterprise environments.
