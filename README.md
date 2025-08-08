@@ -4,14 +4,6 @@ Welcome to this comprehensive collection of AWS tools and solutions designed to 
 
 ## 🌟 Featured Projects
 
-### 📊 [AWS Reports Web Application](./aws-reports-web-app/)
-**Modern web dashboard for AWS cost and security reporting**
-- Next.js 15 web application with cross-platform desktop support (Electron)
-- Interactive cost reports with service filtering and export capabilities  
-- Security Hub findings dashboard with real-time data
-- Multi-account support with role-based access
-- Professional HTML/PDF/Excel report exports
-
 ### 💰 [FinOps Cost Report Generator](./finops-cost-report/)
 **Python-based AWS cost analysis and reporting tool**
 - Comprehensive cost reports using AWS Cost Explorer API
@@ -53,7 +45,6 @@ Each project is self-contained with its own documentation. Choose the tools that
 
 | Tool | Use Case | Technology | Complexity |
 |------|----------|------------|------------|
-| **AWS Reports Web App** | Modern dashboards & reporting | Next.js, TypeScript, Electron | ⭐⭐⭐ |
 | **FinOps Cost Report** | Cost analysis & optimization | Python, boto3 | ⭐⭐ |
 | **Security Hub Dashboard** | Security posture visualization | Python, HTML/JS | ⭐⭐ |
 | **Security Hub Cleaner** | Findings management automation | Python, boto3 | ⭐ |
@@ -66,7 +57,6 @@ Each project is self-contained with its own documentation. Choose the tools that
 - AWS CLI configured with appropriate profiles
 - AWS credentials with necessary permissions (detailed in each project)
 - Python 3.6+ (for Python-based tools)
-- Node.js 18+ (for web applications)
 
 ### AWS Permissions
 Each tool requires specific AWS permissions. Refer to individual project documentation for detailed IAM policy requirements.
